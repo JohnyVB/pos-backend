@@ -32,16 +32,25 @@ export const login = async (req: Request, res: Response) => {
     const result = await pool.query("SELECT * FROM users WHERE email=$1", [
       email,
     ]);
-    if (result.rows.length === 0)
-      return res.status(400).json({ error: "User not found" });
+    if (result.rows.length === 0) {
+      return res
+        .status(400)
+        .json({ response: "error", message: "User not found" });
+    }
 
     const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ error: "Wrong password" });
+
+    if (!match) {
+      return res
+        .status(400)
+        .json({ response: "error", message: "Wrong password" });
+    }
 
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
-      expiresIn: "8h",
+      expiresIn: "12h",
     });
+
     return res.status(200).json({
       response: "success",
       token,
@@ -53,6 +62,7 @@ export const login = async (req: Request, res: Response) => {
       },
     });
   } catch (err: any) {
+    console.log(err);
     res.status(500).json({
       response: "error",
       message: err.message,
