@@ -4,21 +4,23 @@ import { pool } from "../config/postgresql.config";
 export const getCategories = async (req: Request, res: Response) => {
   try {
     const result = await pool.query("SELECT * FROM categories");
-    res.json(result.rows);
+    res.status(200).json({ response: "success", categories: result.rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Error fetching categories:", err);
+    res.status(500).json({ response: "error", message: err.message });
   }
 };
 
 export const createCategory = async (req: Request, res: Response) => {
-  const { name } = req.body;
+  const { name, description } = req.body;
   try {
     const result = await pool.query(
-      "INSERT INTO categories (name, created_at) VALUES ($1, NOW()) RETURNING *",
-      [name],
+      "INSERT INTO categories (name, created_at, description, active) VALUES ($1, NOW(), $2, true) RETURNING *",
+      [name, description],
     );
-    res.json(result.rows[0]);
+    res.status(201).json({ response: "success", category: result.rows[0] });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Error creating category:", err);
+    res.status(500).json({ response: "error", message: err.message });
   }
 };
