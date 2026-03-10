@@ -1,8 +1,8 @@
-import { Request, response, Response } from "express";
 import bcrypt from "bcrypt";
+import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { pool } from "../config/postgresql.config";
 import { envConfig } from "../config/environment.config";
+import { pool } from "../config/postgresql.config";
 
 const JWT_SECRET = envConfig.JWT_SECRET || "your_jwt_secret_key";
 
