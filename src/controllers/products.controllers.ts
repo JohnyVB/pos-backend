@@ -15,32 +15,28 @@ export const getProducts = async (req: Request, res: Response) => {
 
 // Crear producto
 export const createProduct = async (req: Request, res: Response) => {
-  const { name, barcode, price, vat, categoryId } = req.body;
+  const { name, barcode, price, vat, category_id } = req.body;
   try {
+
+    // crear el producto en la base de datos
     const result = await pool.query(
       `INSERT INTO products (name, barcode, price, vat, category_id, active)
        VALUES ($1,$2,$3,$4,$5,true)
        RETURNING *`,
-      [name, barcode, price, vat, categoryId],
+      [name, barcode, price, vat, category_id],
     );
+
+    // agregar el producto al inventario con cantidad 0
+    await pool.query(
+      `INSERT INTO inventory (product_id, quantity)
+       VALUES ($1, 0)`,
+      [result.rows[0].id],
+    );
+
     res.status(201).json({ response: "success", product: result.rows[0] });
   } catch (err: any) {
     res.status(500).json({ response: "error", message: err.message });
   }
-};
-
-export const getProductByBarcode = async (req: Request, res: Response) => {
-  const { barcode } = req.params;
-
-  const result = await pool.query("SELECT * FROM products WHERE barcode=$1", [
-    barcode,
-  ]);
-
-  if (result.rows.length === 0) {
-    return res.status(404).json({ message: "Product not found" });
-  }
-
-  res.json(result.rows[0]);
 };
 
 // Editar producto
@@ -73,6 +69,21 @@ export const deleteProduct = async (req: Request, res: Response) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ response: "error", message: "Product not found" });
     }
+    res.status(200).json({ response: "success", product: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ response: "error", message: err.message });
+  }
+};
+
+export const searchProductByQuery = async (req: Request, res: Response) => {
+  const { query } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT p.*, i.quantity as inventory_quantity FROM products p 
+       INNER JOIN inventory i ON p.id = i.product_id
+       WHERE p.active = true AND (p.name ILIKE $1 OR p.barcode ILIKE $1)`,
+      [`%${query}%`]
+    );
     res.status(200).json({ response: "success", product: result.rows[0] });
   } catch (err: any) {
     res.status(500).json({ response: "error", message: err.message });
