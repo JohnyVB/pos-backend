@@ -69,3 +69,24 @@ export const login = async (req: Request, res: Response) => {
     });
   }
 };
+
+// autentificación de token
+export const verifyToken = (req: Request, res: Response, next: any) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res
+      .status(401)
+      .json({ response: "error", message: "No token provided" });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err: any) => {
+    if (err) {
+      return res
+        .status(403)
+        .json({ response: "error", message: "Invalid token" });
+    } else {
+      return res.status(200).json({ response: "success", message: "Token is valid" });
+    }
+  });
+}
