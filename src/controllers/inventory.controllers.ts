@@ -35,3 +35,16 @@ export const movement = async (req: Request, res: Response) => {
     res.status(500).json({ response: "error", message: "Error interno del servidor" });
   }
 };
+
+export const loadInventory = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, product_id, quantity FROM inventory
+       WHERE quantity > 0`
+    );
+    res.status(200).json({ response: "success", inventory: rows });
+  } catch (error) {
+    console.error("Error cargando inventario:", error);
+    res.status(500).json({ response: "error", message: "Error interno del servidor" });
+  }
+}
