@@ -3,8 +3,6 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import { pool } from "../config/postgresql.config";
 
 export const createSale = async (req: AuthRequest, res: Response) => {
-  console.log(JSON.stringify(req.body, null, 2))
-  console.log(JSON.stringify(req.user, null, 2))
   const user_id = req.user.id;
   const client = await pool.connect();
   try {

@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { openCashBox, closeCashBox } from "../controllers/cashbox.controllers";
 import { authMiddleware } from "../middleware/auth.middleware";
+import { closeCashBox, getCashBoxes, openCashBox } from "../controllers/cashbox.controllers";
 
 const router = Router();
 
 router.post("/open", authMiddleware, openCashBox); // abrir caja
-router.post("/close", authMiddleware, closeCashBox); // cerrar caja
+router.put("/close", authMiddleware, closeCashBox); // cerrar caja
+router.get("/", authMiddleware, getCashBoxes); // obtener cajas
 
 export default router;
