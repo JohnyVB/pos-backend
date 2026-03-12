@@ -89,3 +89,20 @@ export const searchProductByQuery = async (req: Request, res: Response) => {
     res.status(500).json({ response: "error", message: err.message });
   }
 };
+
+export const getProductByBarcode = async (req: Request, res: Response) => {
+  const { barcode } = req.params
+  try {
+    const result = await pool.query(
+      `SELECT p.id, p.name, p.barcode, p.price, p.vat, i.quantity AS stock
+        FROM products p
+        JOIN inventory i ON p.id = i.product_id
+        WHERE p.barcode = $1 AND p.active = true;
+      `,
+      [barcode]
+    )
+    res.status(200).json({ response: "success", product: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ response: "error", message: err.message });
+  }
+}
