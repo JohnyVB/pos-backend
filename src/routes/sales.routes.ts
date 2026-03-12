@@ -4,6 +4,6 @@ import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.post("/", authMiddleware, createSale); // registrar venta con detalle y actualizar inventario
+router.post("/", authMiddleware, createSale);
 
 export default router;
