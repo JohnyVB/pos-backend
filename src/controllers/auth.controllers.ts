@@ -8,12 +8,18 @@ const JWT_SECRET = envConfig.JWT_SECRET || "your_jwt_secret_key";
 
 // Registrar usuario
 export const register = async (req: Request, res: Response) => {
-  const { name, email, password, role } = req.body;
+  const { name, username, email, password, role } = req.body;
+  let userEmail = "";
+  if (!email || email === "") {
+    userEmail = "no-email@" + username + ".com";
+  } else {
+    userEmail = email;
+  }
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      "INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role",
-      [name, email, hash, role || "CASHIER"],
+      "INSERT INTO users (name, username, email, password, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, username, email, role",
+      [name, username, userEmail, hash, role],
     );
     res.status(201).json({
       response: "success",
