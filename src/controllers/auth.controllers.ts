@@ -27,27 +27,31 @@ export const register = async (req: Request, res: Response) => {
 
 // Login
 export const login = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { user, password } = req.body;
   try {
-    const result = await pool.query("SELECT * FROM users WHERE email=$1", [
-      email,
-    ]);
+    const result = await pool.query(
+      `SELECT * FROM users 
+        WHERE (username = $1 OR email = $1)
+        AND active = true
+      `,
+      [user],
+    );
     if (result.rows.length === 0) {
       return res
         .status(400)
-        .json({ response: "error", message: "User not found" });
+        .json({ response: "error", message: "Usuario no encontrado" });
     }
 
-    const user = result.rows[0];
-    const match = await bcrypt.compare(password, user.password);
+    const userData = result.rows[0];
+    const match = await bcrypt.compare(password, userData.password);
 
     if (!match) {
       return res
         .status(400)
-        .json({ response: "error", message: "Wrong password" });
+        .json({ response: "error", message: "Contraseña incorrecta" });
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: userData.id, role: userData.role }, JWT_SECRET, {
       expiresIn: "12h",
     });
 
@@ -55,10 +59,10 @@ export const login = async (req: Request, res: Response) => {
       response: "success",
       token,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
       },
     });
   } catch (err: any) {
