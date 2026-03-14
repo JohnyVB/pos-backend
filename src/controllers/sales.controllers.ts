@@ -1,6 +1,6 @@
-import { Response } from "express";
-import { AuthRequest } from "../middleware/auth.middleware";
+import { Request, Response } from "express";
 import { pool } from "../config/postgresql.config";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 export const createSale = async (req: AuthRequest, res: Response) => {
   const user_id = req.user.id;
@@ -84,5 +84,38 @@ export const createSale = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ response: "error", message: "Error al registrar venta" });
   } finally {
     client.release();
+  }
+};
+
+export const getSales = async (req: Request, res: Response) => {
+  const { cash_box_id } = req.params;
+  try {
+    const client = await pool.connect();
+    const result = await client.query(
+      `SELECT
+          s.id,
+          s.created_at,
+          u.username AS seller_name,
+          s.payment_method,
+          s.total,
+          s.subtotal,
+          s.vat_total,
+          s.cash_box_id
+      FROM sales s
+      JOIN users u ON s.user_id = u.id
+      WHERE
+        (s.created_at >= $1 OR $1 IS NULL) -- Fecha Inicio
+        AND (s.created_at <= $2 OR $2 IS NULL) -- Fecha Fin
+        AND (s.cash_box_id = $3 OR $3 IS NULL) -- Caja específica
+      ORDER BY s.created_at DESC;`,
+      [cash_box_id],
+    );
+    res.status(200).json({
+      response: "success",
+      sales: result.rows,
+    });
+  } catch (err: any) {
+    console.log("Error en getSalesByCashBoxId", err)
+    res.status(500).json({ response: "error", message: "Error al obtener las ventas" });
   }
 };
