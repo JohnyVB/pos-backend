@@ -6,7 +6,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
   const user_id = req.user.id;
   const client = await pool.connect();
   try {
-    const { payment_method, amount_received, cash_box_id, items } = req.body;
+    const { payment_method, amount_received, reference, cash_box_id, items } = req.body;
     await client.query("BEGIN");
 
     let total = 0;
@@ -21,7 +21,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       total += subtotal;
       vat_total += vatAmount;
       sub_total += subtotal;
-      change_amount = amount_received - total;
+      change_amount = payment_method === "CASH" ? amount_received - total : 0;
 
       // descontar inventario
       await client.query(
@@ -32,19 +32,19 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       // registrar movimiento
       await client.query(
         `INSERT INTO inventory_movements (product_id, movement_type, quantity, reference, created_at) 
-          VALUES ($1,'SALE',$2,'sale',NOW())
+          VALUES ($1,'SALE',$2,$3,NOW())
         `,
-        [product_id, quantity],
+        [product_id, quantity, reference],
       );
     }
 
     // registrar venta
     const saleRes = await client.query(
-      `INSERT INTO sales (user_id, cash_box_id, subtotal, vat_total, total, payment_method, amount_received, change_amount, created_at) 
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW()) 
+      `INSERT INTO sales (user_id, cash_box_id, subtotal, vat_total, total, payment_method, amount_received, change_amount, created_at, card_reference, transaction_reference) 
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW(), $9, $10) 
         RETURNING *
       `,
-      [user_id, cash_box_id, sub_total, vat_total, total, payment_method, amount_received, change_amount],
+      [user_id, cash_box_id, sub_total, vat_total, total, payment_method, amount_received, change_amount, reference, `SALE_${Date.now()}`],
     );
     const sale_id = saleRes.rows[0].id;
 
