@@ -40,7 +40,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
     // registrar venta
     const saleRes = await client.query(
-      `INSERT INTO sales (user_id, cash_box_id, subtotal, vat_total, total, payment_method, amount_received, change_amount, created_at, card_reference, transaction_reference) 
+      `INSERT INTO sales (user_id, session_id, subtotal, vat_total, total, payment_method, amount_received, change_amount, created_at, card_reference, transaction_reference) 
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW(), $9, $10) 
         RETURNING *
       `,
