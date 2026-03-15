@@ -35,24 +35,42 @@ export const closeCashBoxSession = async (req: AuthRequest, res: Response) => {
 };
 
 export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
+  const { pos_terminal_id, start_date, end_date, user_id } = req.body;
   try {
     const result = await pool.query(`
         SELECT 
-          cbs.id as session_id, 
-          cbs.pos_terminal_id, 
-          cbs.user_id, 
-          u.name as user_name, 
-          cbs.opening_amount, 
-          cbs.closing_amount, 
-          cbs.opened_at, 
-          cbs.closed_at, 
-          cbs.status,
-          pt.name as terminal_name
-        FROM cash_box_sessions cbs
-        INNER JOIN users u ON cbs.user_id = u.id
-        INNER JOIN pos_terminals pt ON cbs.pos_terminal_id = pt.id
-        ORDER BY cbs.id DESC
-      `);
+            cbs.id AS session_id, 
+            cbs.opening_amount, 
+            cbs.closing_amount, 
+            cbs.opened_at, 
+            cbs.closed_at, 
+            cbs.status AS session_status,
+
+            -- Datos del Usuario (Cajero)
+            u.id AS user_id, 
+            u.name AS name, 
+            u.username AS user_name,
+
+            -- Datos de la Terminal (Caja Física)
+            pt.id AS pos_terminal_id,
+            pt.name AS terminal_name,
+            
+            -- OPCIONAL: Un conteo rápido de cuántas ventas se hicieron en ese turno
+            (SELECT COUNT(*) FROM public.sales s WHERE s.session_id = cbs.id) AS total_sales_count,
+            (SELECT SUM(total) FROM public.sales s WHERE s.session_id = cbs.id) AS total_collected
+        FROM public.cash_box_sessions cbs
+        LEFT JOIN public.users u ON cbs.user_id = u.id
+        LEFT JOIN public.pos_terminals pt ON cbs.pos_terminal_id = pt.id
+        WHERE 
+            -- Filtros dinámicos
+            ($1::int IS NULL OR cbs.pos_terminal_id = $1)
+            AND ($2::timestamp IS NULL OR cbs.opened_at >= $2)
+            AND ($3::timestamp IS NULL OR cbs.opened_at <= $3)
+            AND ($4::int IS NULL OR cbs.user_id = $4)
+        ORDER BY cbs.opened_at DESC;
+      `,
+      [pos_terminal_id, start_date, end_date, user_id]
+    );
     res.status(200).json({ response: "success", cashBoxSessions: result.rows });
   } catch (err: any) {
     console.log(err)
