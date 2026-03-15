@@ -119,3 +119,49 @@ export const getSales = async (req: Request, res: Response) => {
     res.status(500).json({ response: "error", message: "Error al obtener las ventas" });
   }
 };
+
+export const getSalesBySessionId = async (req: Request, res: Response) => {
+  const { session_id } = req.params;
+  try {
+    const client = await pool.connect();
+    const result = await client.query(
+      `SELECT
+          s.id AS sale_id,
+          s.total,
+          s.subtotal AS sale_subtotal,
+          s.vat_total AS sale_vat_total,
+          s.payment_method,
+          s.created_at,
+          s.amount_received,
+          s.change_amount,
+          s.status AS sale_status,
+          JSON_AGG(
+              JSON_BUILD_OBJECT(
+                  'item_id', si.id,
+                  'product_id', si.product_id,
+                  'product_name', p.name,
+                  'quantity', si.quantity,
+                  'price_at_sale', si.price,
+                  'vat_rate', si.vat,
+                  'item_subtotal', si.subtotal,
+                  'barcode', p.barcode
+              )
+          ) AS items
+      FROM public.sales s
+      LEFT JOIN public.sale_items si ON s.id = si.sale_id
+      LEFT JOIN public.products p ON si.product_id = p.id
+      WHERE s.session_id = $1
+      GROUP BY s.id
+      ORDER BY s.created_at DESC;
+      `,
+      [session_id],
+    );
+    res.status(200).json({
+      response: "success",
+      sales: result.rows,
+    });
+  } catch (err: any) {
+    console.log("Error en getSalesBySessionId", err)
+    res.status(500).json({ response: "error", message: "Error al obtener las ventas" });
+  }
+};
