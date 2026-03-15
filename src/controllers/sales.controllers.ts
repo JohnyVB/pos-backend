@@ -90,8 +90,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 export const getSales = async (req: Request, res: Response) => {
   const { cash_box_id } = req.params;
   try {
-    const client = await pool.connect();
-    const result = await client.query(
+    const result = await pool.query(
       `SELECT
           s.id,
           s.created_at,
@@ -123,8 +122,7 @@ export const getSales = async (req: Request, res: Response) => {
 export const getSalesBySessionId = async (req: Request, res: Response) => {
   const { session_id } = req.params;
   try {
-    const client = await pool.connect();
-    const result = await client.query(
+    const result = await pool.query(
       `SELECT
           s.id AS sale_id,
           s.total,
