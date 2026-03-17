@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../config/postgresql.config";
 import { AuthRequest } from "../middleware/auth.middleware";
+import { updateInventory } from "../helper/UpdateInventory.helper";
 
 export const createSale = async (req: AuthRequest, res: Response) => {
   const user_id = req.user.id;
@@ -161,5 +162,70 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
   } catch (err: any) {
     console.log("Error en getSalesBySessionId", err)
     res.status(500).json({ response: "error", message: "Error al obtener las ventas" });
+  }
+};
+
+export const processRefund = async (req: Request, res: Response) => {
+  const {
+    sale_id,
+    session_id,
+    user_id,
+    reason,
+    items
+  } = req.body;
+
+  const total_refunded = items.reduce((acc: number, item: any) => acc + item.price_at_sale * item.quantity, 0);
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Insertar en la tabla 'refunds'
+    // Usamos los nombres exactos de tus columnas: sale_id, user_id, session_id, total_refunded, reason
+    const refundQuery = `
+      INSERT INTO public.refunds (sale_id, user_id, session_id, total_refunded, reason)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id;
+    `;
+    await client.query(refundQuery, [sale_id, user_id, session_id, total_refunded, reason]);
+
+    // 2. Actualizar el stock en la tabla 'inventory'
+    // Recorremos los items devueltos para sumar la cantidad al inventario existente
+    // for (const item of items) {
+    //   const updateInventoryQuery = `
+    //     UPDATE public.inventory 
+    //     SET quantity = quantity + $1 
+    //     WHERE product_id = $2;
+    //   `;
+    //   await client.query(updateInventoryQuery, [item.quantity, item.product_id]);
+    // }
+    await updateInventory(items, "add", pool);
+
+    // 3. Cambiar el estado de la venta en 'sales'
+    // Marcamos la venta original como 'REFUNDED'
+    const updateSaleQuery = `
+      UPDATE public.sales 
+      SET status = 'REFUNDED' 
+      WHERE id = $1;
+    `;
+    await client.query(updateSaleQuery, [sale_id]);
+
+    await client.query('COMMIT');
+
+    res.status(200).json({
+      success: true,
+      message: "Devolución procesada, stock restaurado y estado de venta actualizado."
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error("Error en la transacción de devolución:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error procesando la devolución. No se realizaron cambios."
+    });
+  } finally {
+    client.release();
   }
 };
