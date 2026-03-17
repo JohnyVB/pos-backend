@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { pool } from "../config/postgresql.config";
 import { AuthRequest } from "../middleware/auth.middleware";
-import { updateInventory } from "../helper/UpdateInventory.helper";
+import { UpdateInventory } from "../helper/UpdateInventory.helper";
+import { UpdateSaleItems } from "../helper/UpdateSaleItems.helper";
 
 export const createSale = async (req: AuthRequest, res: Response) => {
   const user_id = req.user.id;
@@ -126,31 +127,53 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
     const result = await pool.query(
       `SELECT
           s.id AS sale_id,
-          s.total,
+          s.total AS original_total,
           s.subtotal AS sale_subtotal,
           s.vat_total AS sale_vat_total,
           s.payment_method,
           s.created_at,
-          s.amount_received,
           s.change_amount,
           s.status AS sale_status,
+
+          -- Totales de la venta (Dinero)
+          COALESCE(r.total_refunded_sum, 0) AS total_refunded,
+          (s.total - COALESCE(r.total_refunded_sum, 0)) AS net_total,
+
+          -- Desglose de productos con lógica de retorno
           JSON_AGG(
               JSON_BUILD_OBJECT(
                   'item_id', si.id,
                   'product_id', si.product_id,
                   'product_name', p.name,
-                  'quantity', si.quantity,
+                  'barcode', p.barcode,
+                  'original_quantity', si.quantity,
+                  'returned_quantity', COALESCE(si.returned_quantity, 0),
+
+                  -- Cantidad neta (lo que el cliente aún tiene)
+                  'current_quantity', (si.quantity - COALESCE(si.returned_quantity, 0)),
+
                   'price_at_sale', si.price,
                   'vat_rate', si.vat,
-                  'item_subtotal', si.subtotal,
-                  'barcode', p.barcode
+
+                  -- Subtotal original vs Subtotal actual (tras devoluciones)
+                  'original_item_subtotal', si.subtotal,
+                  'current_item_subtotal', ((si.quantity - COALESCE(si.returned_quantity, 0)) * si.price)
               )
           ) AS items
+
       FROM public.sales s
       LEFT JOIN public.sale_items si ON s.id = si.sale_id
       LEFT JOIN public.products p ON si.product_id = p.id
-      WHERE s.session_id = $1
-      GROUP BY s.id
+
+      -- Subconsulta para el total de dinero devuelto (para el resumen de la venta)
+      LEFT JOIN (
+          SELECT sale_id, SUM(total_refunded) AS total_refunded_sum
+          FROM public.refunds
+          GROUP BY sale_id
+      ) r ON s.id = r.sale_id
+
+      WHERE s.session_id = $1 -- Filtro por sesión de caja
+      GROUP BY s.id, r.total_refunded_sum
       ORDER BY s.created_at DESC;
       `,
       [session_id],
@@ -181,8 +204,6 @@ export const processRefund = async (req: Request, res: Response) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Insertar en la tabla 'refunds'
-    // Usamos los nombres exactos de tus columnas: sale_id, user_id, session_id, total_refunded, reason
     const refundQuery = `
       INSERT INTO public.refunds (sale_id, user_id, session_id, total_refunded, reason)
       VALUES ($1, $2, $3, $4, $5)
@@ -190,31 +211,22 @@ export const processRefund = async (req: Request, res: Response) => {
     `;
     await client.query(refundQuery, [sale_id, user_id, session_id, total_refunded, reason]);
 
-    // 2. Actualizar el stock en la tabla 'inventory'
-    // Recorremos los items devueltos para sumar la cantidad al inventario existente
-    // for (const item of items) {
-    //   const updateInventoryQuery = `
-    //     UPDATE public.inventory 
-    //     SET quantity = quantity + $1 
-    //     WHERE product_id = $2;
-    //   `;
-    //   await client.query(updateInventoryQuery, [item.quantity, item.product_id]);
-    // }
-    await updateInventory(items, "add", pool);
+    await UpdateInventory(items, "add", pool);
+    await UpdateSaleItems(items, sale_id, pool);
 
-    // 3. Cambiar el estado de la venta en 'sales'
-    // Marcamos la venta original como 'REFUNDED'
+    const status = total_refunded === items.reduce((acc: number, item: any) => acc + item.price_at_sale * item.quantity_to_reintegrate, 0) ? "REFUNDED" : "PARTIALLY_REFUNDED";
+
     const updateSaleQuery = `
       UPDATE public.sales 
-      SET status = 'REFUNDED' 
-      WHERE id = $1;
+      SET status = $1 
+      WHERE id = $2;
     `;
-    await client.query(updateSaleQuery, [sale_id]);
+    await client.query(updateSaleQuery, [status, sale_id]);
 
     await client.query('COMMIT');
 
     res.status(200).json({
-      success: true,
+      response: "success",
       message: "Devolución procesada, stock restaurado y estado de venta actualizado."
     });
 
@@ -222,8 +234,8 @@ export const processRefund = async (req: Request, res: Response) => {
     await client.query('ROLLBACK');
     console.error("Error en la transacción de devolución:", error);
     res.status(500).json({
-      success: false,
-      error: "Error procesando la devolución. No se realizaron cambios."
+      response: "error",
+      message: "Error procesando la devolución. No se realizaron cambios."
     });
   } finally {
     client.release();

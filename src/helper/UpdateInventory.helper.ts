@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 
-export const updateInventory = async (
-  products: { product_id: number, quantity: number, reintegrate?: boolean }[],
+export const UpdateInventory = async (
+  products: { product_id: number, quantity_to_reintegrate: number, reintegrate?: boolean }[],
   operation: "add" | "subtract",
   pool: Pool
 ) => {
@@ -10,7 +10,7 @@ export const updateInventory = async (
       if (item.reintegrate) {
         await pool.query(
           `UPDATE inventory SET quantity = quantity ${operation === "add" ? "+" : "-"} $1 WHERE product_id=$2`,
-          [item.quantity, item.product_id],
+          [item.quantity_to_reintegrate, item.product_id],
         );
       }
     }
