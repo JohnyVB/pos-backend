@@ -3,8 +3,10 @@ import { pool } from "../config/postgresql.config";
 
 export const getCategories = async (req: Request, res: Response) => {
   try {
+    const { store_id } = req.params;
     const result = await pool.query(
-      "SELECT * FROM categories WHERE active = true ORDER BY created_at DESC",
+      "SELECT * FROM categories WHERE store_id = $1 AND active = true ORDER BY created_at DESC",
+      [store_id],
     );
     res.status(200).json({ response: "success", categories: result.rows });
   } catch (err: any) {
@@ -15,10 +17,11 @@ export const getCategories = async (req: Request, res: Response) => {
 
 export const createCategory = async (req: Request, res: Response) => {
   const { name, description } = req.body;
+  const { store_id } = req.params;
   try {
     const result = await pool.query(
-      "INSERT INTO categories (name, created_at, description, active) VALUES ($1, NOW(), $2, true) RETURNING *",
-      [name, description],
+      "INSERT INTO categories (name, created_at, description, active, store_id) VALUES ($1, NOW(), $2, true, $3) RETURNING *",
+      [name, description, store_id],
     );
     res.status(201).json({ response: "success", category: result.rows[0] });
   } catch (err: any) {

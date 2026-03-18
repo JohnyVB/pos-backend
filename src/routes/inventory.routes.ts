@@ -4,7 +4,7 @@ import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.post("/movement", authMiddleware, movement);
-router.get("/", authMiddleware, loadInventory)
+router.post("/movement/:store_id", authMiddleware, movement);
+router.get("/:store_id", authMiddleware, loadInventory)
 
 export default router;

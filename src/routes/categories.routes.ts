@@ -8,8 +8,8 @@ import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.get("/", authMiddleware, getCategories); // listar categorías
-router.post("/", authMiddleware, createCategory); // crear categoría
+router.get("/:store_id", authMiddleware, getCategories); // listar categorías
+router.post("/:store_id", authMiddleware, createCategory); // crear categoría
 router.put("/", authMiddleware, deactivateCategory); // desactivar categoría
 
 export default router;
