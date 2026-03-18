@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
 import { pool } from "../config/postgresql.config";
-import { AuthRequest } from "../middleware/auth.middleware";
 import { UpdateInventory } from "../helper/UpdateInventory.helper";
 import { UpdateSaleItems } from "../helper/UpdateSaleItems.helper";
+import { AuthRequest } from "../interfaces/auth.interface";
 
 export const createSale = async (req: AuthRequest, res: Response) => {
-  const user_id = req.user.id;
+  const { store_id } = req.params;
+  const user_id = req.user?.id;
   const client = await pool.connect();
   try {
     const { payment_method, amount_received, reference, cash_box_id, items } = req.body;
@@ -33,20 +34,20 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
       // registrar movimiento
       await client.query(
-        `INSERT INTO inventory_movements (product_id, movement_type, quantity, reference, created_at) 
-          VALUES ($1,'SALE',$2,$3,NOW())
+        `INSERT INTO inventory_movements (product_id, movement_type, quantity, reference, created_at, store_id) 
+          VALUES ($1,'SALE',$2,$3,NOW(), $4)
         `,
-        [product_id, quantity, reference],
+        [product_id, quantity, reference, store_id],
       );
     }
 
     // registrar venta
     const saleRes = await client.query(
-      `INSERT INTO sales (user_id, session_id, subtotal, vat_total, total, payment_method, amount_received, change_amount, created_at, card_reference, transaction_reference) 
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW(), $9, $10) 
+      `INSERT INTO sales (user_id, session_id, subtotal, vat_total, total, payment_method, amount_received, change_amount, created_at, card_reference, transaction_reference, store_id) 
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW(), $9, $10, $11) 
         RETURNING *
       `,
-      [user_id, cash_box_id, sub_total, vat_total, total, payment_method, amount_received, change_amount, reference, `SALE_${Date.now()}`],
+      [user_id, cash_box_id, sub_total, vat_total, total, payment_method, amount_received, change_amount, reference, `SALE_${Date.now()}`, store_id],
     );
     const sale_id = saleRes.rows[0].id;
 
@@ -189,6 +190,7 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
 };
 
 export const processRefund = async (req: Request, res: Response) => {
+  const { store_id } = req.params;
   const {
     sale_id,
     session_id,
@@ -205,16 +207,19 @@ export const processRefund = async (req: Request, res: Response) => {
     await client.query('BEGIN');
 
     const refundQuery = `
-      INSERT INTO public.refunds (sale_id, user_id, session_id, total_refunded, reason)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO public.refunds (sale_id, user_id, session_id, total_refunded, reason, store_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id;
     `;
-    await client.query(refundQuery, [sale_id, user_id, session_id, total_refunded, reason]);
+    await client.query(refundQuery, [sale_id, user_id, session_id, total_refunded, reason, store_id]);
 
     await UpdateInventory(items, "add", pool);
     await UpdateSaleItems(items, sale_id, pool);
 
-    const status = total_refunded === items.reduce((acc: number, item: any) => acc + item.price_at_sale * item.quantity_to_reintegrate, 0) ? "REFUNDED" : "PARTIALLY_REFUNDED";
+    const status = total_refunded ===
+      items.reduce((acc: number, item: any) => acc + item.price_at_sale * item.quantity_to_reintegrate, 0)
+      ? "REFUNDED"
+      : "PARTIALLY_REFUNDED";
 
     const updateSaleQuery = `
       UPDATE public.sales 

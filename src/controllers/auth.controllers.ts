@@ -6,31 +6,6 @@ import { pool } from "../config/postgresql.config";
 
 const JWT_SECRET = envConfig.JWT_SECRET || "your_jwt_secret_key";
 
-// Registrar usuario
-export const register = async (req: Request, res: Response) => {
-  const { name, username, email, password, role } = req.body;
-  let userEmail = "";
-  if (!email || email === "") {
-    userEmail = "no-email@" + username + ".com";
-  } else {
-    userEmail = email;
-  }
-  try {
-    const hash = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      "INSERT INTO users (name, username, email, password, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, username, email, role",
-      [name, username, userEmail, hash, role],
-    );
-    res.status(201).json({
-      response: "success",
-      user: result.rows[0],
-    });
-  } catch (err: any) {
-    console.log(err);
-    res.status(500).json({ response: "error", message: err.message });
-  }
-};
-
 // Login
 export const login = async (req: Request, res: Response) => {
   const { user, password } = req.body;

@@ -1,17 +1,18 @@
 import { Response } from "express";
 import { pool } from "../config/postgresql.config";
-import { AuthRequest } from "../middleware/auth.middleware";
+import { AuthRequest } from "../interfaces/auth.interface";
 
 export const openCashBoxSession = async (req: AuthRequest, res: Response) => {
   const { opening_amount, pos_terminal_id } = req.body;
-  const userId = req.user.id;
+  const userId = req.user?.id;
+  const { store_id } = req.params;
   try {
     const result = await pool.query(
-      `INSERT INTO cash_box_sessions (opened_at, opening_amount, user_id, pos_terminal_id, status) 
-      VALUES (NOW(), $1, $2, $3, 'OPEN') 
+      `INSERT INTO cash_box_sessions (opened_at, opening_amount, user_id, pos_terminal_id, status, store_id) 
+      VALUES (NOW(), $1, $2, $3, 'OPEN', $4) 
       RETURNING id as session_id, *
       `,
-      [opening_amount, userId, pos_terminal_id],
+      [opening_amount, userId, pos_terminal_id, store_id],
     );
     res.status(200).json({ response: "success", cashBoxSession: result.rows[0] });
   } catch (err: any) {
@@ -35,6 +36,7 @@ export const closeCashBoxSession = async (req: AuthRequest, res: Response) => {
 };
 
 export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
+  const { store_id } = req.params;
   const { pos_terminal_id, start_date, end_date, user_id } = req.body;
   try {
     const result = await pool.query(`
@@ -67,9 +69,10 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
             AND ($2::timestamp IS NULL OR cbs.opened_at >= $2)
             AND ($3::timestamp IS NULL OR cbs.opened_at <= $3)
             AND ($4::int IS NULL OR cbs.user_id = $4)
+            AND cbs.store_id = $5
         ORDER BY cbs.opened_at DESC;
       `,
-      [pos_terminal_id, start_date, end_date, user_id]
+      [pos_terminal_id, start_date, end_date, user_id, store_id]
     );
     res.status(200).json({ response: "success", cashBoxSessions: result.rows });
   } catch (err: any) {

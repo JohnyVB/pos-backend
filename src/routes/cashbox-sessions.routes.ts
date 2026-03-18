@@ -4,8 +4,8 @@ import { closeCashBoxSession, getCashBoxSessions, openCashBoxSession } from "../
 
 const router = Router();
 
-router.post("/open", authMiddleware, openCashBoxSession); // abrir sesion de caja
+router.post("/open/:store_id", authMiddleware, openCashBoxSession); // abrir sesion de caja
 router.put("/close", authMiddleware, closeCashBoxSession); // cerrar sesion de caja
-router.post("/get", authMiddleware, getCashBoxSessions); // obtener sesiones de caja
+router.post("/get/:store_id", authMiddleware, getCashBoxSessions); // obtener sesiones de caja
 
 export default router;

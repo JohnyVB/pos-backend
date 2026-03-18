@@ -4,8 +4,8 @@ import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.post("/", authMiddleware, createSale);
+router.post("/:store_id", authMiddleware, createSale);
 router.get("/:session_id", authMiddleware, getSalesBySessionId);
-router.post("/:sale_id/refund", authMiddleware, processRefund);
+router.post("/refund/:store_id", authMiddleware, processRefund);
 
 export default router;

@@ -4,7 +4,7 @@ import { createTerminal, getTerminals } from "../controllers/terminals.controlle
 
 const router = Router();
 
-router.get("/", authMiddleware, getTerminals);
-router.post("/", authMiddleware, createTerminal);
+router.get("/:store_id", authMiddleware, getTerminals);
+router.post("/:store_id", authMiddleware, createTerminal);
 
 export default router;

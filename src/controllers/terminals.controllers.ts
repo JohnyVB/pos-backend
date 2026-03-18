@@ -4,8 +4,12 @@ import { pool } from "../config/postgresql.config";
 
 // 1. Listar todas las cajas
 export const getTerminals = async (req: Request, res: Response) => {
+  const { store_id } = req.params;
   try {
-    const result = await pool.query('SELECT * FROM pos_terminals WHERE active = true ORDER BY id ASC');
+    const result = await pool.query(
+      'SELECT * FROM pos_terminals WHERE active = true AND store_id = $1 ORDER BY id DESC',
+      [store_id]
+    );
     res.status(200).json({ response: "success", terminals: result.rows });
   } catch (error) {
     console.log(error);
@@ -16,10 +20,11 @@ export const getTerminals = async (req: Request, res: Response) => {
 // 2. Crear nueva caja
 export const createTerminal = async (req: Request, res: Response) => {
   const { name } = req.body;
+  const { store_id } = req.params;
   try {
     const result = await pool.query(
-      'INSERT INTO pos_terminals (name, active) VALUES ($1, true) RETURNING *',
-      [name]
+      'INSERT INTO pos_terminals (name, active, store_id) VALUES ($1, true, $2) RETURNING *',
+      [name, store_id]
     );
     res.status(201).json({ response: "success", terminal: result.rows[0] });
   } catch (error) {
