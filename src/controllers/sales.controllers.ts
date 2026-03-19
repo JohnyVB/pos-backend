@@ -182,15 +182,19 @@ export const processRefund = async (req: Request, res: Response) => {
     await UpdateInventory(items, "add", pool);
     await UpdateSaleItems(items, sale_id, pool);
 
-    const status = total_refunded ===
-      items.reduce((acc: number, item: any) => {
-        const qty = item.original_quantity || item.quantity || 0;
-        const itemTotal = item.price_at_sale * qty;
-        const itemVat = (itemTotal * (item.vat_rate || 0)) / 100;
-        return acc + itemTotal + itemVat;
-      }, 0)
-      ? "REFUNDED"
-      : "PARTIALLY_REFUNDED";
+    const saleRes = await client.query(
+      "SELECT (CASE WHEN total = subtotal THEN total + vat_total ELSE total END) as original_total FROM sales WHERE id = $1", 
+      [sale_id]
+    );
+    const original_total = Number(saleRes.rows[0]?.original_total || 0);
+
+    const allRefundsRes = await client.query(
+      "SELECT COALESCE(SUM(total_refunded), 0) as total_refunded_sum FROM refunds WHERE sale_id = $1", 
+      [sale_id]
+    );
+    const allRefunds = Number(allRefundsRes.rows[0]?.total_refunded_sum || 0);
+
+    const status = allRefunds >= original_total ? "REFUNDED" : "PARTIALLY_REFUNDED";
 
     const updateSaleQuery = `
       UPDATE public.sales 
