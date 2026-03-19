@@ -21,7 +21,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       const { product_id, quantity, price, vat } = item;
       const subtotal = price * quantity;
       const vatAmount = (subtotal * vat) / 100;
-      total += subtotal;
+      total += (subtotal + vatAmount);
       vat_total += vatAmount;
       sub_total += subtotal;
       change_amount = payment_method === "CASH" ? amount_received - total : 0;
@@ -96,7 +96,7 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
     const result = await pool.query(
       `SELECT
           s.id AS sale_id,
-          (s.total + s.vat_total) AS original_total,
+          (CASE WHEN s.total = s.subtotal THEN s.total + s.vat_total ELSE s.total END) AS original_total,
           s.subtotal AS sale_subtotal,
           s.vat_total AS sale_vat_total,
           s.payment_method,
@@ -104,7 +104,7 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
           s.change_amount,
           s.status AS sale_status,
           COALESCE(r.total_refunded_sum, 0) AS total_refunded,
-          ((s.total + s.vat_total) - COALESCE(r.total_refunded_sum, 0)) AS net_total,
+          ((CASE WHEN s.total = s.subtotal THEN s.total + s.vat_total ELSE s.total END) - COALESCE(r.total_refunded_sum, 0)) AS net_total,
 
           -- Desglose de productos con lógica de retorno
           JSON_AGG(
@@ -160,7 +160,12 @@ export const processRefund = async (req: Request, res: Response) => {
     items
   } = req.body;
 
-  const total_refunded = items.reduce((acc: number, item: any) => acc + item.price_at_sale * item.quantity, 0);
+  const total_refunded = items.reduce((acc: number, item: any) => {
+    const qty = item.quantity_to_reintegrate || item.quantity || 0;
+    const itemTotal = item.price_at_sale * qty;
+    const itemVat = (itemTotal * (item.vat_rate || 0)) / 100;
+    return acc + itemTotal + itemVat;
+  }, 0);
 
   const client = await pool.connect();
 
@@ -178,7 +183,12 @@ export const processRefund = async (req: Request, res: Response) => {
     await UpdateSaleItems(items, sale_id, pool);
 
     const status = total_refunded ===
-      items.reduce((acc: number, item: any) => acc + item.price_at_sale * item.quantity_to_reintegrate, 0)
+      items.reduce((acc: number, item: any) => {
+        const qty = item.original_quantity || item.quantity || 0;
+        const itemTotal = item.price_at_sale * qty;
+        const itemVat = (itemTotal * (item.vat_rate || 0)) / 100;
+        return acc + itemTotal + itemVat;
+      }, 0)
       ? "REFUNDED"
       : "PARTIALLY_REFUNDED";
 

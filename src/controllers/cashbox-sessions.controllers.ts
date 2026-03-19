@@ -59,7 +59,7 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
             
             -- OPCIONAL: Un conteo rápido de cuántas ventas se hicieron en ese turno
             (SELECT COUNT(*) FROM public.sales s WHERE s.session_id = cbs.id) AS total_sales_count,
-            (SELECT SUM(total) FROM public.sales s WHERE s.session_id = cbs.id) AS total_collected
+            (SELECT SUM(CASE WHEN total = subtotal THEN total + vat_total ELSE total END) FROM public.sales s WHERE s.session_id = cbs.id) AS total_collected
         FROM public.cash_box_sessions cbs
         LEFT JOIN public.users u ON cbs.user_id = u.id
         LEFT JOIN public.pos_terminals pt ON cbs.pos_terminal_id = pt.id
