@@ -90,55 +90,21 @@ export const createSale = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getSales = async (req: Request, res: Response) => {
-  const { cash_box_id } = req.params;
-  try {
-    const result = await pool.query(
-      `SELECT
-          s.id,
-          s.created_at,
-          u.username AS seller_name,
-          s.payment_method,
-          s.total,
-          s.subtotal,
-          s.vat_total,
-          s.cash_box_id
-      FROM sales s
-      JOIN users u ON s.user_id = u.id
-      WHERE
-        (s.created_at >= $1 OR $1 IS NULL) -- Fecha Inicio
-        AND (s.created_at <= $2 OR $2 IS NULL) -- Fecha Fin
-        AND (s.cash_box_id = $3 OR $3 IS NULL) -- Caja específica
-      ORDER BY s.created_at DESC;`,
-      [cash_box_id],
-    );
-    res.status(200).json({
-      response: "success",
-      sales: result.rows,
-    });
-  } catch (err: any) {
-    console.log("Error en getSalesByCashBoxId", err)
-    res.status(500).json({ response: "error", message: "Error al obtener las ventas" });
-  }
-};
-
 export const getSalesBySessionId = async (req: Request, res: Response) => {
   const { session_id } = req.params;
   try {
     const result = await pool.query(
       `SELECT
           s.id AS sale_id,
-          s.total AS original_total,
+          (s.total + s.vat_total) AS original_total,
           s.subtotal AS sale_subtotal,
           s.vat_total AS sale_vat_total,
           s.payment_method,
           s.created_at,
           s.change_amount,
           s.status AS sale_status,
-
-          -- Totales de la venta (Dinero)
           COALESCE(r.total_refunded_sum, 0) AS total_refunded,
-          (s.total - COALESCE(r.total_refunded_sum, 0)) AS net_total,
+          ((s.total + s.vat_total) - COALESCE(r.total_refunded_sum, 0)) AS net_total,
 
           -- Desglose de productos con lógica de retorno
           JSON_AGG(
@@ -149,14 +115,9 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
                   'barcode', p.barcode,
                   'original_quantity', si.quantity,
                   'returned_quantity', COALESCE(si.returned_quantity, 0),
-
-                  -- Cantidad neta (lo que el cliente aún tiene)
                   'current_quantity', (si.quantity - COALESCE(si.returned_quantity, 0)),
-
                   'price_at_sale', si.price,
                   'vat_rate', si.vat,
-
-                  -- Subtotal original vs Subtotal actual (tras devoluciones)
                   'original_item_subtotal', si.subtotal,
                   'current_item_subtotal', ((si.quantity - COALESCE(si.returned_quantity, 0)) * si.price)
               )
