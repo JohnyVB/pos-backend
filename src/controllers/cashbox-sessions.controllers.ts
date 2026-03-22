@@ -57,9 +57,27 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
             pt.id AS pos_terminal_id,
             pt.name AS terminal_name,
             
-            -- OPCIONAL: Un conteo rápido de cuántas ventas se hicieron en ese turno
+            -- Conteo de ventas
             (SELECT COUNT(*) FROM public.sales s WHERE s.session_id = cbs.id) AS total_sales_count,
-            (SELECT SUM(CASE WHEN total = subtotal THEN total + vat_total ELSE total END) FROM public.sales s WHERE s.session_id = cbs.id) AS total_collected
+            
+            -- Total recaudado en ventas (Solo completadas)
+            (SELECT COALESCE(SUM(total), 0) FROM public.sales s WHERE s.session_id = cbs.id AND s.status = 'COMPLETED') AS total_sales_amount,
+
+            -- NUEVO: Suma de Entradas de efectivo (Cash In)
+            (SELECT COALESCE(SUM(amount), 0) FROM public.cash_movements cm WHERE cm.session_id = cbs.id AND cm.type = 'IN') AS total_cash_in,
+
+            -- NUEVO: Suma de Salidas de efectivo (Cash Out)
+            (SELECT COALESCE(SUM(amount), 0) FROM public.cash_movements cm WHERE cm.session_id = cbs.id AND cm.type = 'OUT') AS total_cash_out,
+
+            -- NUEVO: Saldo Final Esperado (Apertura + Ventas - Salidas + Entradas)
+            -- Nota: Aquí asumo que quieres el balance de lo que DEBERÍA haber en caja
+            (
+                cbs.opening_amount + 
+                (SELECT COALESCE(SUM(total), 0) FROM public.sales s WHERE s.session_id = cbs.id AND s.status = 'COMPLETED' AND s.payment_method = 'CASH') +
+                (SELECT COALESCE(SUM(amount), 0) FROM public.cash_movements cm WHERE cm.session_id = cbs.id AND cm.type = 'IN') -
+                (SELECT COALESCE(SUM(amount), 0) FROM public.cash_movements cm WHERE cm.session_id = cbs.id AND cm.type = 'OUT')
+            ) AS expected_cash_balance
+
         FROM public.cash_box_sessions cbs
         LEFT JOIN public.users u ON cbs.user_id = u.id
         LEFT JOIN public.pos_terminals pt ON cbs.pos_terminal_id = pt.id
@@ -69,7 +87,7 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
             AND ($2::timestamp IS NULL OR cbs.opened_at >= $2)
             AND ($3::timestamp IS NULL OR cbs.opened_at <= $3)
             AND ($4::int IS NULL OR cbs.user_id = $4)
-            AND cbs.store_id = $5
+            AND cbs.store_id = $5::uuid -- Aseguramos el cast a UUID para tu nueva estructura
         ORDER BY cbs.opened_at DESC;
       `,
       [pos_terminal_id, start_date, end_date, user_id, store_id]
