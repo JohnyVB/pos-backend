@@ -6,6 +6,7 @@ import {
   deleteProduct,
   searchProductByQuery,
   getProductByBarcode,
+  getProductsWithLowStock,
 } from "../controllers/products.controllers";
 import { authMiddleware } from "../middleware/auth.middleware";
 
@@ -17,5 +18,6 @@ router.put("/:id", authMiddleware, updateProduct); // editar producto
 router.delete("/:id", authMiddleware, deleteProduct); // eliminar producto
 router.get("/search/:query/:store_id", authMiddleware, searchProductByQuery); // buscar productos por nombre o barcode
 router.get("/barcode/:barcode/:store_id", authMiddleware, getProductByBarcode)
+router.get("/low-stock/:store_id", authMiddleware, getProductsWithLowStock)
 
 export default router;

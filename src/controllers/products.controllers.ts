@@ -108,3 +108,31 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
     res.status(500).json({ response: "error", message: err.message });
   }
 }
+
+export const getProductsWithLowStock = async (req: Request, res: Response) => {
+  const { store_id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT
+            p.id,
+            p.name,
+            p.barcode,
+            p.min_stock,
+            COALESCE(i.quantity, 0) AS current_stock,
+            (p.min_stock - COALESCE(i.quantity, 0)) AS quantity_to_buy,
+            c.name AS category_name
+        FROM public.products p
+        JOIN public.categories c ON p.category_id = c.id
+        LEFT JOIN public.inventory i ON p.id = i.product_id AND i.store_id = $1
+        WHERE p.active = true
+          AND p.store_id = $1
+          AND COALESCE(i.quantity, 0) <= p.min_stock
+        ORDER BY (COALESCE(i.quantity, 0) / NULLIF(p.min_stock, 0)) ASC;
+      `,
+      [store_id]
+    )
+    res.status(200).json({ response: "success", products: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ response: "error", message: err.message });
+  }
+}

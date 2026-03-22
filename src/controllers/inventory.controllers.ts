@@ -4,7 +4,6 @@ import { pool } from "../config/postgresql.config";
 export const movement = async (req: Request, res: Response) => {
   const { product_id, quantity, type, reference } = req.body;
   const { store_id } = req.params;
-
   try {
     await pool.query(
       `INSERT INTO inventory_movements
@@ -25,7 +24,7 @@ export const movement = async (req: Request, res: Response) => {
       await pool.query(
         `UPDATE inventory
          SET quantity = quantity - $1
-         WHERE product_id = $1`,
+         WHERE product_id = $2`,
         [quantity, product_id]
       )
     }
