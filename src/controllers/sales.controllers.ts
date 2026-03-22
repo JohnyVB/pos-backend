@@ -94,49 +94,60 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
   const { session_id } = req.params;
   try {
     const result = await pool.query(
-      `SELECT
-          s.id AS sale_id,
-          (CASE WHEN s.total = s.subtotal THEN s.total + s.vat_total ELSE s.total END) AS original_total,
-          s.subtotal AS sale_subtotal,
-          s.vat_total AS sale_vat_total,
-          s.payment_method,
-          s.created_at,
-          s.change_amount,
-          s.status AS sale_status,
-          COALESCE(r.total_refunded_sum, 0) AS total_refunded,
-          ((CASE WHEN s.total = s.subtotal THEN s.total + s.vat_total ELSE s.total END) - COALESCE(r.total_refunded_sum, 0)) AS net_total,
-
-          -- Desglose de productos con lógica de retorno
-          JSON_AGG(
-              JSON_BUILD_OBJECT(
-                  'item_id', si.id,
-                  'product_id', si.product_id,
-                  'product_name', p.name,
-                  'barcode', p.barcode,
-                  'original_quantity', si.quantity,
-                  'returned_quantity', COALESCE(si.returned_quantity, 0),
-                  'current_quantity', (si.quantity - COALESCE(si.returned_quantity, 0)),
-                  'price_at_sale', si.price,
-                  'vat_rate', si.vat,
-                  'original_item_subtotal', si.subtotal,
-                  'current_item_subtotal', ((si.quantity - COALESCE(si.returned_quantity, 0)) * si.price)
-              )
-          ) AS items
-
-      FROM public.sales s
-      LEFT JOIN public.sale_items si ON s.id = si.sale_id
-      LEFT JOIN public.products p ON si.product_id = p.id
-
-      -- Subconsulta para el total de dinero devuelto (para el resumen de la venta)
-      LEFT JOIN (
-          SELECT sale_id, SUM(total_refunded) AS total_refunded_sum
-          FROM public.refunds
-          GROUP BY sale_id
-      ) r ON s.id = r.sale_id
-
-      WHERE s.session_id = $1 -- Filtro por sesión de caja
-      GROUP BY s.id, r.total_refunded_sum
-      ORDER BY s.created_at DESC;
+      `(
+          -- BLOQUE 1: VENTAS
+          SELECT
+              s.created_at,
+              'SALE' AS record_type,         -- Identificador para el Frontend
+              s.id AS record_id,
+              s.payment_method,
+              s.status AS record_status,
+              s.total AS amount,
+              s.subtotal AS sale_subtotal,
+              s.vat_total AS sale_vat_total,
+              COALESCE(r.total_refunded_sum, 0) AS total_refunded,
+              'Venta de productos' AS reason, -- Texto genérico para ventas
+              -- Desglose de productos (Tu lógica actual)
+              JSON_AGG(
+                  JSON_BUILD_OBJECT(
+                      'item_id', si.id,
+                      'product_name', p.name,
+                      'barcode', p.barcode,
+                      'quantity', si.quantity,
+                      'returned', COALESCE(si.returned_quantity, 0),
+                      'price', si.price,
+                      'subtotal', si.subtotal
+                  )
+              ) AS details
+          FROM public.sales s
+          LEFT JOIN public.sale_items si ON s.id = si.sale_id
+          LEFT JOIN public.products p ON si.product_id = p.id
+          LEFT JOIN (
+              SELECT sale_id, SUM(total_refunded) AS total_refunded_sum
+              FROM public.refunds GROUP BY sale_id
+          ) r ON s.id = r.sale_id
+          WHERE s.session_id = $1 -- Filtro por sesión
+          GROUP BY s.id, r.total_refunded_sum, s.created_at
+      )
+      UNION ALL
+      (
+          -- BLOQUE 2: MOVIMIENTOS DE CAJA (CASH IN / OUT)
+          SELECT
+              cm.created_at,
+              CASE WHEN cm.type = 'IN' THEN 'CASH_IN' ELSE 'CASH_OUT' END AS record_type,
+              cm.id AS record_id,
+              'CASH' AS payment_method,
+              'COMPLETED' AS record_status,
+              cm.amount AS amount,
+              cm.amount AS sale_subtotal, -- Para mantener la misma estructura de columnas
+              0 AS sale_vat_total,
+              0 AS total_refunded,
+              cm.reason AS reason,         -- Aquí va el motivo que escribió el usuario
+              NULL AS details              -- Los movimientos no tienen lista de productos
+          FROM public.cash_movements cm
+          WHERE cm.session_id = $1
+      )
+      ORDER BY created_at DESC; -- Todo mezclado cronológicamente
       `,
       [session_id],
     );
@@ -183,13 +194,13 @@ export const processRefund = async (req: Request, res: Response) => {
     await UpdateSaleItems(items, sale_id, pool);
 
     const saleRes = await client.query(
-      "SELECT (CASE WHEN total = subtotal THEN total + vat_total ELSE total END) as original_total FROM sales WHERE id = $1", 
+      "SELECT (CASE WHEN total = subtotal THEN total + vat_total ELSE total END) as original_total FROM sales WHERE id = $1",
       [sale_id]
     );
     const original_total = Number(saleRes.rows[0]?.original_total || 0);
 
     const allRefundsRes = await client.query(
-      "SELECT COALESCE(SUM(total_refunded), 0) as total_refunded_sum FROM refunds WHERE sale_id = $1", 
+      "SELECT COALESCE(SUM(total_refunded), 0) as total_refunded_sum FROM refunds WHERE sale_id = $1",
       [sale_id]
     );
     const allRefunds = Number(allRefundsRes.rows[0]?.total_refunded_sum || 0);
