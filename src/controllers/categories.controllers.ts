@@ -1,11 +1,33 @@
 import { Request, Response } from "express";
 import { pool } from "../config/postgresql.config";
+import { AuthRequest } from "../interfaces/auth.interface";
 
-export const getCategories = async (req: Request, res: Response) => {
+export const getCategories = async (req: AuthRequest, res: Response) => {
+  const user = req.user;
+  const { store_id } = req.params as { store_id: string };
+
+  let finalStoreId: string | null = null;
+  if (user?.role !== "superadmin") {
+    finalStoreId = store_id || null;
+  } else {
+    finalStoreId = user.store_id;
+  }
+
   try {
-    const { store_id } = req.params;
-    const result = await pool.query(
-      "SELECT * FROM categories WHERE store_id = $1 AND active = true ORDER BY created_at DESC",
+    const result = await pool.query(`
+      SELECT 
+        c.id,
+        c.name,
+        c.description,
+        c.created_at,
+        c.store_id,
+        s.name AS store_name,
+        c.active
+      FROM categories c
+      JOIN stores s ON c.store_id = s.id
+      WHERE ($1::uuid IS NULL OR c.store_id = $1::uuid) AND c.active = true
+      ORDER BY c.created_at DESC
+      `,
       [store_id],
     );
     res.status(200).json({ response: "success", categories: result.rows });

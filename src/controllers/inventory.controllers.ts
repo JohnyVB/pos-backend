@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { pool } from "../config/postgresql.config";
+import { AuthRequest } from "../interfaces/auth.interface";
 
 export const movement = async (req: Request, res: Response) => {
   const { product_id, quantity, type, reference } = req.body;
@@ -35,14 +36,34 @@ export const movement = async (req: Request, res: Response) => {
   }
 };
 
-export const loadInventory = async (req: Request, res: Response) => {
+export const loadInventory = async (req: AuthRequest, res: Response) => {
+  const { store_id } = req.params;
+  const { user } = req;
+  let storeId = null;
+
+  if (user && user.role === "superadmin") {
+    storeId = null
+  } else {
+    storeId = store_id
+  }
+
   try {
-    const { store_id } = req.params;
     const { rows } = await pool.query(
-      `SELECT i.id, i.product_id, p.name, p.barcode, i.quantity FROM inventory i
-       INNER JOIN products p ON i.product_id = p.id
-       WHERE i.store_id = $1 AND i.quantity > 0 ORDER BY i.id DESC`,
-      [store_id],
+      `SELECT
+          i.id,
+          i.product_id,
+          p.name,
+          p.barcode,
+          i.quantity,
+          i.store_id,
+          s.name AS store_name
+      FROM public.inventory i
+      INNER JOIN public.products p ON i.product_id = p.id
+      INNER JOIN public.stores s ON i.store_id = s.id
+      WHERE i.quantity > 0
+        AND ($1::uuid IS NULL OR i.store_id = $1)
+      ORDER BY s.name ASC, i.id DESC;`,
+      [storeId],
     );
     res.status(200).json({ response: "success", inventory: rows });
   } catch (error) {

@@ -1,13 +1,44 @@
+import { AuthRequest } from "../interfaces/auth.interface";
 import { Request, Response } from "express";
 import { pool } from "../config/postgresql.config";
 
-// Listar productos activos
-export const getProducts = async (req: Request, res: Response) => {
+export const getProducts = async (req: AuthRequest, res: Response) => {
+  const { user } = req;
+  const { store_id } = req.params as { store_id: string };
+
+  let finalStoreId: string | null = null;
+  if (user?.role !== "superadmin") {
+    finalStoreId = store_id || null;
+  } else {
+    finalStoreId = user.store_id;
+  }
+
   try {
-    const { store_id } = req.params;
     const result = await pool.query(
-      "SELECT * FROM products WHERE store_id = $1 AND active = true ORDER BY id DESC",
-      [store_id],
+      `SELECT
+            p.id,
+            p.name,
+            p.barcode,
+            p.price,
+            p.vat,
+            p.sale_type,
+            p.category_id,
+            p.min_stock,
+            p.active,
+            p.store_id,
+            p.created_at,
+            c.name AS category_name,
+            s.name AS store_name,
+            i.quantity AS stock
+        FROM public.products p
+        JOIN public.categories c ON p.category_id = c.id
+        JOIN public.stores s ON p.store_id = s.id
+        LEFT JOIN public.inventory i ON p.id = i.product_id AND i.store_id = p.store_id
+        WHERE p.active = true
+          AND ($1::uuid IS NULL OR p.store_id = $1)
+        ORDER BY p.id DESC
+      `,
+      [finalStoreId],
     );
     res.status(200).json({ response: "success", products: result.rows });
   } catch (err: any) {
@@ -15,7 +46,6 @@ export const getProducts = async (req: Request, res: Response) => {
   }
 };
 
-// Crear producto
 export const createProduct = async (req: Request, res: Response) => {
   const { store_id } = req.params;
   const { name, barcode, price, vat, category_id, sale_type } = req.body;
@@ -41,7 +71,6 @@ export const createProduct = async (req: Request, res: Response) => {
   }
 };
 
-// Editar producto
 export const updateProduct = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { name, barcode, price, vat, category_id, sale_type, min_stock } = req.body;
@@ -60,7 +89,6 @@ export const updateProduct = async (req: Request, res: Response) => {
   }
 };
 
-// Eliminar producto (marcar como inactivo)
 export const deleteProduct = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
@@ -77,14 +105,23 @@ export const deleteProduct = async (req: Request, res: Response) => {
   }
 };
 
-export const searchProductByQuery = async (req: Request, res: Response) => {
+export const searchProductByQuery = async (req: AuthRequest, res: Response) => {
   const { query, store_id } = req.params;
+  const { user } = req;
+  let storeId = null;
+
+  if (user && user.role === "superadmin") {
+    storeId = null
+  } else {
+    storeId = store_id
+  }
   try {
     const result = await pool.query(
-      `SELECT p.*, i.quantity as inventory_quantity FROM products p 
+      `SELECT p.*, i.quantity, s.name as store_name FROM products p 
        INNER JOIN inventory i ON p.id = i.product_id
-       WHERE p.active = true AND p.store_id = $2 AND (p.name ILIKE $1 OR p.barcode ILIKE $1)`,
-      [`%${query}%`, store_id]
+       INNER JOIN stores s ON p.store_id = s.id
+       WHERE p.active = true AND ($2::uuid IS NULL OR p.store_id = $2) AND (p.name ILIKE $1 OR p.barcode ILIKE $1)`,
+      [`%${query}%`, storeId]
     );
     res.status(200).json({ response: "success", product: result.rows[0] });
   } catch (err: any) {
@@ -109,8 +146,16 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
   }
 }
 
-export const getProductsWithLowStock = async (req: Request, res: Response) => {
+export const getProductsWithLowStock = async (req: AuthRequest, res: Response) => {
   const { store_id } = req.params;
+  const { user } = req;
+  let storeId = null;
+
+  if (user && user.role === "superadmin") {
+    storeId = null
+  } else {
+    storeId = store_id
+  }
   try {
     const result = await pool.query(
       `SELECT
@@ -119,17 +164,20 @@ export const getProductsWithLowStock = async (req: Request, res: Response) => {
             p.barcode,
             p.min_stock,
             COALESCE(i.quantity, 0) AS current_stock,
-            (p.min_stock - COALESCE(i.quantity, 0)) AS quantity_to_buy,
-            c.name AS category_name
+            c.name AS category_name,
+            s.name AS store_name
         FROM public.products p
         JOIN public.categories c ON p.category_id = c.id
-        LEFT JOIN public.inventory i ON p.id = i.product_id AND i.store_id = $1
+        JOIN public.stores s ON p.store_id = s.id
+        LEFT JOIN public.inventory i ON p.id = i.product_id AND i.store_id = p.store_id
         WHERE p.active = true
-          AND p.store_id = $1
+          AND ($1::uuid IS NULL OR p.store_id = $1)
           AND COALESCE(i.quantity, 0) <= p.min_stock
-        ORDER BY (COALESCE(i.quantity, 0) / NULLIF(p.min_stock, 0)) ASC;
+        ORDER BY
+            s.name ASC,
+            (COALESCE(i.quantity, 0) / NULLIF(p.min_stock, 0)) ASC;
       `,
-      [store_id]
+      [storeId]
     )
     res.status(200).json({ response: "success", products: result.rows });
   } catch (err: any) {

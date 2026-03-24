@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { Request, Response } from "express";
 import { pool } from "../config/postgresql.config";
+import { AuthRequest } from "../interfaces/auth.interface";
 
 // Registrar usuario
 export const register = async (req: Request, res: Response) => {
@@ -27,14 +28,34 @@ export const register = async (req: Request, res: Response) => {
   }
 };
 
-export const getUsers = async (req: Request, res: Response) => {
+export const getUsers = async (req: AuthRequest, res: Response) => {
   const { store_id } = req.params;
+  const { user } = req;
+  let storeId = null;
+
+  if (user && user.role === "superadmin") {
+    storeId = null
+  } else {
+    storeId = store_id
+  }
+
   try {
     const result = await pool.query(
-      `SELECT id, name, username, email, role, store_id, active, created_at FROM public.users
-        WHERE ($1::uuid IS NULL OR store_id = $1)
-        ORDER BY created_at DESC;`,
-      [store_id]);
+      `SELECT
+          u.id,
+          u.name,
+          u.username,
+          u.email,
+          u.role,
+          u.store_id,
+          s.name AS store_name,
+          u.active,
+          u.created_at
+      FROM public.users u
+      LEFT JOIN public.stores s ON u.store_id = s.id
+      WHERE ($1::uuid IS NULL OR u.store_id = $1)
+      ORDER BY u.created_at DESC;`,
+      [storeId]);
     res.status(200).json({
       response: "success",
       users: result.rows,
