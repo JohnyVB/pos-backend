@@ -68,9 +68,6 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
     finalUserId = user.id;
   }
 
-  console.log({ user, finalStoreId, finalUserId });
-
-
   try {
     const result = await pool.query(`
         SELECT 
