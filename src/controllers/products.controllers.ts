@@ -5,6 +5,7 @@ import { pool } from "../config/postgresql.config";
 export const getProducts = async (req: AuthRequest, res: Response) => {
   const { user } = req;
   const { store_id } = req.params as { store_id: string };
+  const { vat, min_stock, category_id, sale_type } = req.body;
 
   let finalStoreId: string | null = null;
   if (user?.role !== "superadmin") {
@@ -36,9 +37,13 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
         LEFT JOIN public.inventory i ON p.id = i.product_id AND i.store_id = p.store_id
         WHERE p.active = true
           AND ($1::uuid IS NULL OR p.store_id = $1)
+          AND ($2::numeric IS NULL OR p.vat = $2)
+          AND ($3::integer IS NULL OR p.min_stock = $3)
+          AND ($4::integer IS NULL OR p.category_id = $4)
+          AND ($5::text IS NULL OR p.sale_type = $5)
         ORDER BY p.id DESC
       `,
-      [finalStoreId],
+      [finalStoreId, vat, min_stock, category_id, sale_type],
     );
     res.status(200).json({ response: "success", products: result.rows });
   } catch (err: any) {
