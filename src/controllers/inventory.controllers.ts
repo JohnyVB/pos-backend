@@ -47,6 +47,7 @@ export const movement = async (req: Request, res: Response) => {
 
 export const loadInventory = async (req: AuthRequest, res: Response) => {
   const { store_id } = req.params;
+  const { page = 1, limit = 10 } = req.query;
   const { user } = req;
   let storeId = null;
 
@@ -55,6 +56,8 @@ export const loadInventory = async (req: AuthRequest, res: Response) => {
   } else {
     storeId = store_id
   }
+
+  const offset = (Number(page) - 1) * Number(limit);
 
   try {
     const { rows } = await pool.query(
@@ -72,10 +75,32 @@ export const loadInventory = async (req: AuthRequest, res: Response) => {
       INNER JOIN public.stores s ON i.store_id = s.id
       WHERE i.quantity > 0
         AND ($1::uuid IS NULL OR i.store_id = $1)
-      ORDER BY s.name ASC, i.id DESC;`,
-      [storeId],
-    );
-    res.status(200).json({ response: "success", inventory: rows });
+      ORDER BY s.name ASC, i.id DESC
+      LIMIT $2 OFFSET $3
+      `, [storeId, limit, offset]);
+
+    const totalResult = await pool.query(`
+      SELECT COUNT(*) as total
+      FROM inventory i
+      JOIN products p ON i.product_id = p.id
+      JOIN stores s ON i.store_id = s.id
+      WHERE i.quantity > 0
+        AND ($1::uuid IS NULL OR i.store_id = $1)
+      `, [storeId]);
+
+    const total = parseInt(totalResult.rows[0].total);
+    const totalPages = Math.ceil(total / Number(limit));
+
+    res.status(200).json({
+      response: "success",
+      inventory: rows,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages
+      }
+    });
   } catch (error) {
     console.error("Error cargando inventario:", error);
     res.status(500).json({ response: "error", message: "Error interno del servidor" });

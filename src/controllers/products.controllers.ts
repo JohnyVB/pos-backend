@@ -49,16 +49,17 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
       [finalStoreId, vat, min_stock, category_id, sale_type]
     );
 
-    const totalRecords = parseInt(countResult.rows[0].total);
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / Number(limit));
 
     res.status(200).json({
       response: "success",
       products: result.rows,
       pagination: {
-        total: totalRecords,
+        total,
         page: Number(page),
         limit: Number(limit),
-        totalPages: Math.ceil(totalRecords / Number(limit))
+        totalPages
       }
     });
   } catch (err: any) {

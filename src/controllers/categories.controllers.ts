@@ -5,6 +5,7 @@ import { AuthRequest } from "../interfaces/auth.interface";
 export const getCategories = async (req: AuthRequest, res: Response) => {
   const user = req.user;
   const { store_id } = req.params as { store_id: string };
+  const { page, limit } = req.query as { page: string, limit: string };
 
   let finalStoreId: string | null = null;
   if (user?.role !== "superadmin") {
@@ -12,6 +13,8 @@ export const getCategories = async (req: AuthRequest, res: Response) => {
   } else {
     finalStoreId = user.store_id;
   }
+
+  const offset = (Number(page) - 1) * Number(limit);
 
   try {
     const result = await pool.query(`
@@ -27,10 +30,29 @@ export const getCategories = async (req: AuthRequest, res: Response) => {
       JOIN stores s ON c.store_id = s.id
       WHERE ($1::uuid IS NULL OR c.store_id = $1::uuid) AND c.active = true
       ORDER BY c.created_at DESC
-      `,
-      [store_id],
-    );
-    res.status(200).json({ response: "success", categories: result.rows });
+      LIMIT $2 OFFSET $3
+      `, [store_id, limit, offset]);
+
+    const totalResult = await pool.query(`
+      SELECT COUNT(*) as total
+      FROM categories c
+      JOIN stores s ON c.store_id = s.id
+      WHERE ($1::uuid IS NULL OR c.store_id = $1::uuid) AND c.active = true
+      `, [store_id]);
+
+    const total = parseInt(totalResult.rows[0].total);
+    const totalPages = Math.ceil(total / Number(limit));
+
+    res.status(200).json({
+      response: "success",
+      categories: result.rows,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages
+      }
+    });
   } catch (err: any) {
     console.error("Error fetching categories:", err);
     res.status(500).json({ response: "error", message: err.message });
