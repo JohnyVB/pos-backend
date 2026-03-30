@@ -5,7 +5,9 @@ import { pool } from "../config/postgresql.config";
 export const getProducts = async (req: AuthRequest, res: Response) => {
   const { user } = req;
   const { store_id } = req.params as { store_id: string };
-  const { vat, min_stock, category_id, sale_type } = req.body;
+  const { vat, min_stock, category_id, sale_type, page = 1, limit = 10 } = req.body;
+
+  const offset = (Number(page) - 1) * Number(limit);
 
   let finalStoreId: string | null = null;
   if (user?.role !== "superadmin") {
@@ -17,21 +19,9 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
   try {
     const result = await pool.query(
       `SELECT
-            p.id,
-            p.name,
-            p.barcode,
-            p.price,
-            p.cost_price,
-            p.vat,
-            p.sale_type,
-            p.category_id,
-            p.min_stock,
-            p.active,
-            p.store_id,
-            p.created_at,
-            c.name AS category_name,
-            s.name AS store_name,
-            i.quantity AS stock
+            p.id, p.name, p.barcode, p.price, p.cost_price, p.vat, p.sale_type,
+            p.category_id, p.min_stock, p.active, p.store_id, p.created_at,
+            c.name AS category_name, s.name AS store_name, i.quantity AS stock
         FROM public.products p
         JOIN public.categories c ON p.category_id = c.id
         JOIN public.stores s ON p.store_id = s.id
@@ -39,14 +29,38 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
         WHERE p.active = true
           AND ($1::uuid IS NULL OR p.store_id = $1)
           AND ($2::numeric IS NULL OR p.vat = $2)
-          AND ($3::integer IS NULL OR p.min_stock = $3)
+          AND ($3::numeric IS NULL OR p.min_stock = $3)
           AND ($4::integer IS NULL OR p.category_id = $4)
           AND ($5::text IS NULL OR p.sale_type = $5)
         ORDER BY p.id DESC
-      `,
-      [finalStoreId, vat, min_stock, category_id, sale_type],
+        LIMIT $6 OFFSET $7`,
+      [finalStoreId, vat, min_stock, category_id, sale_type, limit, offset],
     );
-    res.status(200).json({ response: "success", products: result.rows });
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total
+       FROM public.products p
+       WHERE p.active = true
+         AND ($1::uuid IS NULL OR p.store_id = $1)
+         AND ($2::numeric IS NULL OR p.vat = $2)
+         AND ($3::numeric IS NULL OR p.min_stock = $3)
+         AND ($4::integer IS NULL OR p.category_id = $4)
+         AND ($5::text IS NULL OR p.sale_type = $5)`,
+      [finalStoreId, vat, min_stock, category_id, sale_type]
+    );
+
+    const totalRecords = parseInt(countResult.rows[0].total);
+
+    res.status(200).json({
+      response: "success",
+      products: result.rows,
+      pagination: {
+        total: totalRecords,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(totalRecords / Number(limit))
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ response: "error", message: err.message });
   }
