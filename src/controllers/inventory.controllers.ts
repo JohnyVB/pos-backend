@@ -3,14 +3,17 @@ import { pool } from "../config/postgresql.config";
 import { AuthRequest } from "../interfaces/auth.interface";
 
 export const movement = async (req: Request, res: Response) => {
-  const { product_id, quantity, type, reference } = req.body;
+  const { product_id, quantity, type, reference, cost_price } = req.body;
   const { store_id } = req.params;
+
+  console.log({ product_id, quantity, type, reference, cost_price, store_id });
+
   try {
     await pool.query(
       `INSERT INTO inventory_movements
-      (product_id, movement_type, quantity, reference, store_id)
-      VALUES ($1,$2,$3,$4,$5)`,
-      [product_id, type, quantity, reference, store_id]
+      (product_id, movement_type, quantity, reference, store_id, unit_cost)
+      VALUES ($1,$2,$3,$4,$5,$6)`,
+      [product_id, type, quantity, reference, store_id, cost_price]
     )
 
     if (type === "IN") {
@@ -29,6 +32,12 @@ export const movement = async (req: Request, res: Response) => {
         [quantity, product_id]
       )
     }
+    await pool.query(
+      `UPDATE products
+       SET cost_price = $1
+       WHERE id = $2`,
+      [cost_price, product_id]
+    )
     res.status(200).json({ response: "success", message: "Movimiento registrado" });
   } catch (error) {
     console.error("Error registrando movimiento:", error);
@@ -54,6 +63,7 @@ export const loadInventory = async (req: AuthRequest, res: Response) => {
           i.product_id,
           p.name,
           p.barcode,
+          p.cost_price,
           i.quantity,
           i.store_id,
           s.name AS store_name

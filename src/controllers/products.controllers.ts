@@ -21,6 +21,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
             p.name,
             p.barcode,
             p.price,
+            p.cost_price,
             p.vat,
             p.sale_type,
             p.category_id,
@@ -53,14 +54,14 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
   const { store_id } = req.params;
-  const { name, barcode, price, vat, category_id, sale_type } = req.body;
+  const { name, barcode, price, vat, category_id, sale_type, cost_price } = req.body;
   try {
     // crear el producto en la base de datos
     const result = await pool.query(
-      `INSERT INTO products (name, barcode, price, vat, category_id, sale_type, active, store_id)
-       VALUES ($1,$2,$3,$4,$5,$6,true,$7)
+      `INSERT INTO products (name, barcode, price, vat, category_id, sale_type, cost_price, active, store_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8)
        RETURNING *`,
-      [name, barcode, price, vat, category_id, sale_type, store_id],
+      [name, barcode, price, vat, category_id, sale_type, cost_price, store_id],
     );
 
     // agregar el producto al inventario con cantidad 0
@@ -78,12 +79,12 @@ export const createProduct = async (req: Request, res: Response) => {
 
 export const updateProduct = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, barcode, price, vat, category_id, sale_type, min_stock } = req.body;
+  const { name, barcode, price, vat, category_id, sale_type, min_stock, cost_price } = req.body;
   try {
     const result = await pool.query(
-      `UPDATE products SET name=$1, barcode=$2, price=$3, vat=$4, category_id=$5, sale_type=$6, min_stock=$7
-       WHERE id=$8 RETURNING *`,
-      [name, barcode, price, vat, category_id, sale_type, min_stock, id],
+      `UPDATE products SET name=$1, barcode=$2, price=$3, vat=$4, category_id=$5, sale_type=$6, min_stock=$7, cost_price=$8
+       WHERE id=$9 RETURNING *`,
+      [name, barcode, price, vat, category_id, sale_type, min_stock, cost_price, id],
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ response: "error", message: "Product not found" });
@@ -121,12 +122,15 @@ export const searchProductByQuery = async (req: AuthRequest, res: Response) => {
     storeId = store_id
   }
   try {
-    const result = await pool.query(
-      `SELECT p.*, i.quantity, s.name as store_name FROM products p 
-       INNER JOIN inventory i ON p.id = i.product_id
-       INNER JOIN stores s ON p.store_id = s.id
-       WHERE p.active = true AND ($2::uuid IS NULL OR p.store_id = $2) AND (p.name ILIKE $1 OR p.barcode ILIKE $1)`,
-      [`%${query}%`, storeId]
+    const result = await pool.query(`
+      SELECT p.*, COALESCE(i.quantity, 0) as quantity, s.name as store_name 
+        FROM products p 
+        LEFT JOIN inventory i ON p.id = i.product_id
+        INNER JOIN stores s ON p.store_id = s.id
+        WHERE p.active = true 
+          AND ($2::uuid IS NULL OR p.store_id = $2) 
+          AND (p.name ILIKE $1 OR p.barcode ILIKE $1)
+       `, [`%${query}%`, storeId]
     );
     res.status(200).json({ response: "success", product: result.rows[0] });
   } catch (err: any) {
@@ -137,12 +141,20 @@ export const searchProductByQuery = async (req: AuthRequest, res: Response) => {
 export const getProductByBarcode = async (req: Request, res: Response) => {
   const { barcode, store_id } = req.params
   try {
-    const result = await pool.query(
-      `SELECT p.id, p.name, p.barcode, p.price, p.vat, p.sale_type, i.quantity AS stock
-        FROM products p
-        JOIN inventory i ON p.id = i.product_id
-        WHERE p.barcode = $1 AND p.active = true AND p.store_id = $2;
-      `,
+    const result = await pool.query(`
+      SELECT 
+        p.id, 
+        p.name, 
+        p.barcode, 
+        p.price, 
+        p.vat, 
+        p.sale_type, 
+        p.cost_price,
+        i.quantity AS stock
+      FROM products p
+      JOIN inventory i ON p.id = i.product_id
+      WHERE p.barcode = $1 AND p.active = true AND p.store_id = $2;
+    `,
       [barcode, store_id]
     )
     res.status(200).json({ response: "success", product: result.rows[0] });
