@@ -39,6 +39,7 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
   const user = req.user; // Datos del token JWT (id, role, store_id)
   const { store_id: paramStoreId } = req.params as { store_id: string };
   const { pos_terminal_id, start_date, end_date, user_id: bodyUserId } = req.body;
+  const { page = 1, limit = 10 } = req.query as { page?: string, limit?: string };
 
   // Variables que irán a la base de datos
   let finalStoreId: string | null = null;
@@ -67,6 +68,8 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
     finalStoreId = user.store_id;
     finalUserId = user.id;
   }
+
+  const offset = (Number(page) - 1) * Number(limit);
 
   try {
     const result = await pool.query(`
@@ -119,18 +122,53 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
             AND ($3::int IS NULL OR cbs.pos_terminal_id = $3)
             AND ($4::int IS NULL OR cbs.user_id = $4)
             AND ($5::uuid IS NULL OR cbs.store_id = $5)
-        ORDER BY cbs.opened_at DESC;
+        ORDER BY cbs.opened_at DESC
+        LIMIT $6 OFFSET $7;
       `,
       [
         start_date || null,
         end_date || null,
         pos_terminal_id || null,
         finalUserId,
-        finalStoreId
+        finalStoreId,
+        limit,
+        offset
       ]
     );
 
-    res.status(200).json({ response: "success", cashBoxSessions: result.rows });
+    const countResult = await pool.query(`
+        SELECT COUNT(*) as total_records
+        FROM public.cash_box_sessions cbs
+        LEFT JOIN public.users u ON cbs.user_id = u.id
+        LEFT JOIN public.pos_terminals pt ON cbs.pos_terminal_id = pt.id
+        LEFT JOIN public.stores s ON cbs.store_id = s.id
+        WHERE 
+            ($1::timestamp IS NULL OR cbs.opened_at >= $1)
+            AND ($2::timestamp IS NULL OR cbs.opened_at <= $2)
+            AND ($3::int IS NULL OR cbs.pos_terminal_id = $3)
+            AND ($4::int IS NULL OR cbs.user_id = $4)
+            AND ($5::uuid IS NULL OR cbs.store_id = $5)
+    `, [
+      start_date || null,
+      end_date || null,
+      pos_terminal_id || null,
+      finalUserId,
+      finalStoreId,
+    ]);
+
+    const total = Number(countResult.rows[0].total_records);
+    const totalPages = Math.ceil(total / Number(limit));
+
+    res.status(200).json({
+      response: "success",
+      cashBoxSessions: result.rows,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages
+      }
+    });
   } catch (err: any) {
     console.error("Error en getCashBoxSessions:", err);
     res.status(500).json({ response: "error", error: err.message });
