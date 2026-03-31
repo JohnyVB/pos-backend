@@ -92,13 +92,15 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
 export const getSalesBySessionId = async (req: Request, res: Response) => {
   const { session_id } = req.params;
+  const { page = 1, limit = 10 } = req.query;
+  const offset = (Number(page) - 1) * Number(limit);
   try {
     const result = await pool.query(
       `(
           -- BLOQUE 1: VENTAS
           SELECT
               s.created_at,
-              'SALE' AS record_type,         -- Identificador para el Frontend
+              'SALE' AS record_type,
               s.id AS record_id,
               s.payment_method,
               s.status AS record_status,
@@ -139,21 +141,38 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
               'CASH' AS payment_method,
               'COMPLETED' AS record_status,
               cm.amount AS amount,
-              cm.amount AS sale_subtotal, -- Para mantener la misma estructura de columnas
+              cm.amount AS sale_subtotal,
               0 AS sale_vat_total,
               0 AS total_refunded,
-              cm.reason AS reason,         -- Aquí va el motivo que escribió el usuario
-              NULL AS details              -- Los movimientos no tienen lista de productos
+              cm.reason AS reason,
+              NULL AS details
           FROM public.cash_movements cm
           WHERE cm.session_id = $1
       )
-      ORDER BY created_at DESC; -- Todo mezclado cronológicamente
-      `,
-      [session_id],
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3`, [session_id, limit, offset]);
+
+    const totalSales = await pool.query(
+      `SELECT COUNT(*) as total FROM (
+        SELECT s.id FROM public.sales s WHERE s.session_id = $1
+        UNION ALL
+        SELECT cm.id FROM public.cash_movements cm WHERE cm.session_id = $1
+      ) as combined`,
+      [session_id]
     );
+
+    const total = parseInt(totalSales.rows[0].total);
+    const totalPages = Math.ceil(total / Number(limit));
+
     res.status(200).json({
       response: "success",
       sales: result.rows,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages
+      }
     });
   } catch (err: any) {
     console.log("Error en getSalesBySessionId", err)
