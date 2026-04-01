@@ -11,6 +11,7 @@ import terminalRoutes from "./routes/terminals.routes";
 import storeRoutes from "./routes/stores.routes";
 import cashMovementRoutes from "./routes/cash-movements.routes";
 import reportRoutes from "./routes/reports.routes";
+import promotionRoutes from "./routes/promotions.routes";
 import { envConfig } from "./config/environment.config";
 
 const app = express();
@@ -29,6 +30,7 @@ app.use("/terminals", terminalRoutes);
 app.use("/stores", storeRoutes);
 app.use("/cash-movements", cashMovementRoutes);
 app.use("/reports", reportRoutes);
+app.use("/promotions", promotionRoutes);
 
 const PORT = envConfig.PORT || 4000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
