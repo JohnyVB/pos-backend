@@ -8,82 +8,108 @@ export const createSale = async (req: AuthRequest, res: Response) => {
   const { store_id } = req.params;
   const user_id = req.user?.id;
   const client = await pool.connect();
+
   try {
     const { payment_method, amount_received, reference, cash_box_id, items } = req.body;
     await client.query("BEGIN");
 
-    let total = 0;
-    let vat_total = 0;
-    let sub_total = 0;
-    let change_amount = 0;
+    let total_final = 0;
+    let vat_total_final = 0;
+    let subtotal_bruto = 0; // Sin descuentos
+    let total_descuentos = 0;
+
+    // Usaremos un array para guardar los datos procesados y no re-consultar después
+    const processedItems = [];
 
     for (const item of items) {
-      const { product_id, quantity, price, vat } = item;
-      const subtotal = price * quantity;
-      const vatAmount = (subtotal * vat) / 100;
-      total += (subtotal + vatAmount);
-      vat_total += vatAmount;
-      sub_total += subtotal;
-      change_amount = payment_method === "CASH" ? amount_received - total : 0;
+      const { product_id, quantity, promo_id } = item;
 
-      // descontar inventario
-      await client.query(
-        "UPDATE inventory SET quantity = quantity - $1 WHERE product_id=$2",
-        [quantity, product_id],
+      // 1. Obtener datos frescos del producto y su promo (Seguridad)
+      const prodRes = await client.query(`
+        SELECT p.price, p.vat, pr.type as promo_type, pr.discount_rate, pr.buy_qty, pr.pay_qty
+        FROM products p
+        LEFT JOIN promotions pr ON pr.id = $1 AND pr.active = true AND NOW() BETWEEN pr.start_date AND pr.end_date
+        WHERE p.id = $2`,
+        [promo_id, product_id]
       );
 
-      // registrar movimiento
+      const p = prodRes.rows[0];
+      const originalPrice = Number(p.price);
+      let itemDiscount = 0;
+
+      // 2. Cálculo Lógico de la Promoción
+      if (p.promo_type === 'PERCENTAGE') {
+        itemDiscount = (originalPrice * (Number(p.discount_rate) / 100)) * quantity;
+      } else if (p.promo_type === 'MULTIBUY') {
+        const packs = Math.floor(quantity / p.buy_qty);
+        const freeUnits = packs * (p.buy_qty - p.pay_qty);
+        itemDiscount = freeUnits * originalPrice;
+      }
+
+      const itemSubtotal = (originalPrice * quantity) - itemDiscount;
+      const itemVat = (itemSubtotal * p.vat) / 100;
+
+      total_final += (itemSubtotal + itemVat);
+      vat_total_final += itemVat;
+      subtotal_bruto += (originalPrice * quantity);
+      total_descuentos += itemDiscount;
+
+      // Guardamos para el insert de sale_items posterior
+      processedItems.push({
+        ...item,
+        price_at_sale: originalPrice,
+        final_subtotal: itemSubtotal,
+        discount: itemDiscount,
+        vat_rate: p.vat
+      });
+
+      // 3. Descontar inventario
+      await client.query(
+        "UPDATE inventory SET quantity = quantity - $1 WHERE product_id = $2 AND store_id = $3",
+        [quantity, product_id, store_id],
+      );
+
+      // 4. Registrar movimiento
       await client.query(
         `INSERT INTO inventory_movements (product_id, movement_type, quantity, reference, created_at, store_id) 
-          VALUES ($1,'SALE',$2,$3,NOW(), $4)
-        `,
-        [product_id, quantity, reference, store_id],
+         VALUES ($1, 'SALE', $2, $3, NOW(), $4)`,
+        [product_id, quantity, reference || `SALE_${Date.now()}`, store_id],
       );
     }
 
-    // registrar venta
+    const change_amount = payment_method === "CASH" ? amount_received - total_final : 0;
+
+    // 5. Registrar venta (Cabecera)
     const saleRes = await client.query(
-      `INSERT INTO sales (user_id, session_id, subtotal, vat_total, total, payment_method, amount_received, change_amount, created_at, card_reference, transaction_reference, store_id) 
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW(), $9, $10, $11) 
-        RETURNING *
-      `,
-      [user_id, cash_box_id, sub_total, vat_total, total, payment_method, amount_received, change_amount, reference, `SALE_${Date.now()}`, store_id],
+      `INSERT INTO sales (
+        user_id, session_id, subtotal, vat_total, total, 
+        payment_method, amount_received, change_amount, 
+        created_at, store_id, discount_total
+      ) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10) 
+      RETURNING id`,
+      [user_id, cash_box_id, subtotal_bruto, vat_total_final, total_final, payment_method, amount_received, change_amount, store_id, total_descuentos],
     );
     const sale_id = saleRes.rows[0].id;
 
-    // registrar detalle_venta
-    for (const item of items) {
-      const { product_id, quantity } = item;
-      const productRes = await client.query(
-        "SELECT price, vat FROM products WHERE id=$1",
-        [product_id],
-      );
-      const product = productRes.rows[0];
-      const subtotal = product.price * quantity;
+    // 6. Registrar detalle_venta (sale_items)
+    for (const pi of processedItems) {
       await client.query(
-        "INSERT INTO sale_items (sale_id, product_id, quantity, price, vat, subtotal) VALUES ($1,$2,$3,$4,$5,$6)",
-        [sale_id, product_id, quantity, product.price, product.vat, subtotal],
+        `INSERT INTO sale_items (sale_id, product_id, quantity, price, vat, subtotal, promo_id, discount_applied) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [sale_id, pi.product_id, pi.quantity, pi.price_at_sale, pi.vat_rate, pi.final_subtotal, pi.promo_id, pi.discount]
       );
     }
 
     await client.query("COMMIT");
     res.status(201).json({
       response: "success",
-      data: {
-        sale_id,
-        total,
-        vat_total,
-        sub_total,
-        payment_method,
-        amount_received,
-        change_amount,
-        cash_box_id,
-        items,
-      }
+      data: { sale_id, total: total_final, change_amount }
     });
+
   } catch (err: any) {
     await client.query("ROLLBACK");
-    console.log("Error en createSale", err)
+    console.error("Error en createSale:", err);
     res.status(500).json({ response: "error", message: "Error al registrar venta" });
   } finally {
     client.release();

@@ -5,7 +5,7 @@ import { pool } from "../config/postgresql.config";
 export const getProducts = async (req: AuthRequest, res: Response) => {
   const { user } = req;
   const { store_id } = req.params as { store_id: string };
-  const { vat, min_stock, category_id, sale_type, page = 1, limit = 10 } = req.body;
+  const { vat, min_stock, category_id, sale_type, page = 1, limit = 10, searchTerm = "" } = req.body;
 
   const offset = (Number(page) - 1) * Number(limit);
 
@@ -16,25 +16,52 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
     finalStoreId = user.store_id;
   }
 
+  const formattedSearch = searchTerm ? `%${searchTerm}%` : null;
+
   try {
     const result = await pool.query(
       `SELECT
-            p.id, p.name, p.barcode, p.price, p.cost_price, p.vat, p.sale_type,
-            p.category_id, p.min_stock, p.active, p.store_id, p.created_at,
-            c.name AS category_name, s.name AS store_name, i.quantity AS stock
-        FROM public.products p
-        JOIN public.categories c ON p.category_id = c.id
-        JOIN public.stores s ON p.store_id = s.id
-        LEFT JOIN public.inventory i ON p.id = i.product_id AND i.store_id = p.store_id
-        WHERE p.active = true
+          p.id,
+          p.name,
+          p.barcode,
+          p.price,
+          p.cost_price,
+          p.vat,
+          p.sale_type,
+          p.category_id,
+          p.min_stock,
+          p.active,
+          p.store_id,
+          p.created_at,
+          c.name AS category_name,
+          s.name AS store_name,
+          i.quantity AS stock,
+          -- Nuevos campos de promoción
+          pr.name AS promo_name,
+          pr.type AS promo_type,
+          pr.discount_rate,
+          pr.buy_qty,
+          pr.pay_qty
+      FROM public.products p
+      JOIN public.categories c ON p.category_id = c.id
+      JOIN public.stores s ON p.store_id = s.id
+      LEFT JOIN public.inventory i ON p.id = i.product_id AND i.store_id = p.store_id
+      -- Unimos con la tabla intermedia
+      LEFT JOIN public.promotion_items pi ON p.id = pi.product_id
+      -- Unimos con la tabla de promociones validando que esté vigente
+      LEFT JOIN public.promotions pr ON pi.promotion_id = pr.id
+          AND pr.active = true
+          AND NOW() BETWEEN pr.start_date AND pr.end_date
+      WHERE p.active = true
           AND ($1::uuid IS NULL OR p.store_id = $1)
           AND ($2::numeric IS NULL OR p.vat = $2)
           AND ($3::numeric IS NULL OR p.min_stock = $3)
           AND ($4::integer IS NULL OR p.category_id = $4)
           AND ($5::text IS NULL OR p.sale_type = $5)
-        ORDER BY p.id DESC
-        LIMIT $6 OFFSET $7`,
-      [finalStoreId, vat, min_stock, category_id, sale_type, limit, offset],
+          AND ($6::text IS NULL OR p.name ILIKE $6 OR p.barcode ILIKE $6)
+      ORDER BY p.name ASC
+      LIMIT $7 OFFSET $8`,
+      [finalStoreId, vat, min_stock, category_id, sale_type, formattedSearch, limit, offset],
     );
 
     const countResult = await pool.query(
@@ -165,10 +192,23 @@ export const getProductByBarcode = async (req: Request, res: Response) => {
         p.vat, 
         p.sale_type, 
         p.cost_price,
-        i.quantity AS stock
-      FROM products p
-      JOIN inventory i ON p.id = i.product_id
-      WHERE p.barcode = $1 AND p.active = true AND p.store_id = $2;
+        i.quantity AS stock,
+        -- Campos de la promoción (vendrán NULL si no hay una activa)
+        pr.id AS promo_id,
+        pr.name AS promo_name,
+        pr.type AS promo_type,
+        pr.discount_rate,
+        pr.buy_qty,
+        pr.pay_qty
+      FROM public.products p
+      JOIN public.inventory i ON p.id = i.product_id AND i.store_id = p.store_id
+      LEFT JOIN public.promotion_items pi ON p.id = pi.product_id
+      LEFT JOIN public.promotions pr ON pi.promotion_id = pr.id 
+        AND pr.active = true 
+        AND NOW() BETWEEN pr.start_date AND pr.end_date
+      WHERE p.barcode = $1 
+        AND p.active = true 
+        AND p.store_id = $2;
     `,
       [barcode, store_id]
     )
