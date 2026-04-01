@@ -104,7 +104,7 @@ export const createPromotion = async (req: AuthRequest, res: Response) => {
   }
 }
 
-export const deletePromotion = async (req: AuthRequest, res: Response) => {
+export const stopPromotion = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   try {
     await pool.query(`
@@ -114,7 +114,7 @@ export const deletePromotion = async (req: AuthRequest, res: Response) => {
     `, [id]);
     res.status(200).json({
       response: "success",
-      message: "Promocion eliminada correctamente",
+      message: "Promocion detenida correctamente",
     });
   } catch (error) {
     console.error(error);
@@ -125,34 +125,12 @@ export const deletePromotion = async (req: AuthRequest, res: Response) => {
   }
 }
 
-export const updatePromotion = async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
-  const { name, type, discount_rate, buy_qty, pay_qty, start_date, end_date, active, store_id } = req.body;
-  try {
-    const result = await pool.query(`
-      UPDATE public.promotions
-      SET name = $1, type = $2, discount_rate = $3, buy_qty = $4, pay_qty = $5, start_date = $6, end_date = $7, active = $8, store_id = $9
-      WHERE id = $10 RETURNING *;
-    `, [name, type, discount_rate, buy_qty, pay_qty, start_date, end_date, active, store_id, id]);
-    res.status(200).json({
-      response: "success",
-      promotion: result.rows[0],
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      response: "error",
-      message: "Error al actualizar promocion",
-    });
-  }
-}
-
 export const deletePromotionItems = async (req: AuthRequest, res: Response) => {
   const { promotion_id, product_ids } = req.body;
   try {
     await pool.query(`
       DELETE FROM public.promotion_items
-      WHERE promotion_id = $1 AND product_id = $2 RETURNING *;
+      WHERE promotion_id = $1 AND product_id = ANY($2::int[]) RETURNING *;
     `, [promotion_id, product_ids]);
     res.status(200).json({
       response: "success",
