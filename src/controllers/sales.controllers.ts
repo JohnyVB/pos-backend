@@ -133,6 +133,7 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
               s.total AS amount,
               s.subtotal AS sale_subtotal,
               s.vat_total AS sale_vat_total,
+              s.discount_total AS sale_discount_total,
               COALESCE(r.total_refunded_sum, 0) AS total_refunded,
               'Venta de productos' AS reason, -- Texto genérico para ventas
               -- Desglose de productos (Tu lógica actual)
@@ -169,6 +170,7 @@ export const getSalesBySessionId = async (req: Request, res: Response) => {
               cm.amount AS amount,
               cm.amount AS sale_subtotal,
               0 AS sale_vat_total,
+              0 AS sale_discount_total,
               0 AS total_refunded,
               cm.reason AS reason,
               NULL AS details
