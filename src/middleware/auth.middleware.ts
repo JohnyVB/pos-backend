@@ -2,8 +2,9 @@ import { NextFunction, Response } from "express";
 import jwt from "jsonwebtoken";
 import { AuthRequest } from "../interfaces/auth.interface";
 import { User } from "../interfaces/user.interface";
+import { envConfig } from "../config/environment.config";
 
-const JWT_SECRET = process.env.JWT_SECRET || "secret";
+const jwt_secret = envConfig.jwt_secret!;
 
 export const authMiddleware = (
   req: AuthRequest,
@@ -15,7 +16,7 @@ export const authMiddleware = (
 
   const token = authHeader.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwt_secret);
     req.user = decoded as User;
     next();
   } catch (err) {

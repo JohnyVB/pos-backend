@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { envConfig } from "../config/environment.config";
 import { pool } from "../config/postgresql.config";
 
-const JWT_SECRET = envConfig.JWT_SECRET || "your_jwt_secret_key";
+const jwt_secret = envConfig.jwt_secret!;
 
 // Login
 export const login = async (req: Request, res: Response) => {
@@ -32,7 +32,7 @@ export const login = async (req: Request, res: Response) => {
         .json({ response: "error", message: "Contraseña incorrecta" });
     }
 
-    const token = jwt.sign({ id: userData.id, role: userData.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: userData.id, role: userData.role }, jwt_secret, {
       expiresIn: "12h",
     });
 
@@ -59,7 +59,9 @@ export const login = async (req: Request, res: Response) => {
 
 // autentificación de token
 export const verifyToken = (req: Request, res: Response, next: any) => {
-  const { token } = req.body;
+  const bodyToken = req.body?.token;
+  const authHeader = req.headers.authorization;
+  const token = bodyToken || (authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : undefined);
 
   if (!token) {
     return res
@@ -67,13 +69,13 @@ export const verifyToken = (req: Request, res: Response, next: any) => {
       .json({ response: "error", message: "No token provided" });
   }
 
-  jwt.verify(token, JWT_SECRET, (err: any) => {
+  jwt.verify(token, jwt_secret, (err: any) => {
     if (err) {
       return res
-        .status(403)
+        .status(401)
         .json({ response: "error", message: "Invalid token" });
-    } else {
-      return res.status(200).json({ response: "success", message: "Token is valid" });
     }
+
+    return res.status(200).json({ response: "success", message: "Token is valid" });
   });
 }

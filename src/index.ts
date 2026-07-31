@@ -17,7 +17,8 @@ import { envConfig } from "./config/environment.config";
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
@@ -32,5 +33,5 @@ app.use("/cash-movements", cashMovementRoutes);
 app.use("/reports", reportRoutes);
 app.use("/promotions", promotionRoutes);
 
-const PORT = envConfig.PORT || 4000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const port = Number(envConfig.port ?? 5000);
+app.listen(port, "0.0.0.0", () => console.log(`Server running http://localhost${port}`));
