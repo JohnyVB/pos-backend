@@ -69,24 +69,40 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ==========================================
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 >>>>>>> refs/remotes/origin/main
+=======
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+=======
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
 -- TABLA TIENDAS (STORES)
 CREATE TABLE public.stores (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     address TEXT,
 <<<<<<< HEAD
+<<<<<<< HEAD
     phone VARCHAR(20),
 =======
+=======
+>>>>>>> c03c0eb (ajustes de instalacion)
     city VARCHAR(100),
     phone VARCHAR(20),
     cif_nif VARCHAR(50),
     legal_name VARCHAR(150),
     zip_code VARCHAR(20),
+<<<<<<< HEAD
 >>>>>>> refs/remotes/origin/main
+=======
+=======
+    phone VARCHAR(20),
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -95,13 +111,20 @@ CREATE TABLE public.users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     username VARCHAR(100) NOT NULL DEFAULT '',
 >>>>>>> refs/remotes/origin/main
+=======
+    username VARCHAR(100) NOT NULL DEFAULT '',
+=======
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
     email VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(20) CHECK (role IN ('superadmin', 'admin', 'cashier')) DEFAULT 'cashier',
     store_id UUID REFERENCES public.stores(id) ON DELETE CASCADE,
+<<<<<<< HEAD
 <<<<<<< HEAD
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -111,6 +134,8 @@ CREATE TABLE public.terminals (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
 =======
+=======
+>>>>>>> c03c0eb (ajustes de instalacion)
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -120,7 +145,19 @@ CREATE TABLE public.pos_terminals (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
+<<<<<<< HEAD
 >>>>>>> refs/remotes/origin/main
+=======
+=======
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- TABLA TERMINALES (TERMINALS)
+CREATE TABLE public.terminals (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
     store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -130,12 +167,21 @@ CREATE TABLE public.categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
 <<<<<<< HEAD
+<<<<<<< HEAD
     store_id UUID REFERENCES public.stores(id) ON DELETE CASCADE,
 =======
     description TEXT,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
 >>>>>>> refs/remotes/origin/main
+=======
+    description TEXT,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
+=======
+    store_id UUID REFERENCES public.stores(id) ON DELETE CASCADE,
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -166,7 +212,10 @@ CREATE TABLE public.inventory (
 );
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> c03c0eb (ajustes de instalacion)
 -- TABLA MOVIMIENTOS DE INVENTARIO
 CREATE TABLE public.inventory_movements (
     id BIGSERIAL PRIMARY KEY,
@@ -178,7 +227,12 @@ CREATE TABLE public.inventory_movements (
     store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE
 );
 
+<<<<<<< HEAD
 >>>>>>> refs/remotes/origin/main
+=======
+=======
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
 -- TABLA PROMOCIONES (PROMOTIONS)
 CREATE TABLE public.promotions (
     id SERIAL PRIMARY KEY,
@@ -207,18 +261,31 @@ CREATE TABLE public.cash_box_sessions (
     id SERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES public.users(id),
 <<<<<<< HEAD
+<<<<<<< HEAD
     pos_terminal_id INTEGER NOT NULL REFERENCES public.terminals(id),
     store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
     opening_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     closing_amount NUMERIC(10, 2),
     session_status VARCHAR(10) CHECK (session_status IN ('OPEN', 'CLOSED')) DEFAULT 'OPEN',
 =======
+=======
+>>>>>>> c03c0eb (ajustes de instalacion)
     pos_terminal_id INTEGER NOT NULL REFERENCES public.pos_terminals(id),
     store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
     opening_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     closing_amount NUMERIC(10, 2),
     status VARCHAR(10) CHECK (status IN ('OPEN', 'CLOSED')) DEFAULT 'OPEN',
+<<<<<<< HEAD
 >>>>>>> refs/remotes/origin/main
+=======
+=======
+    pos_terminal_id INTEGER NOT NULL REFERENCES public.terminals(id),
+    store_id UUID NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
+    opening_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    closing_amount NUMERIC(10, 2),
+    session_status VARCHAR(10) CHECK (session_status IN ('OPEN', 'CLOSED')) DEFAULT 'OPEN',
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
     opened_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     closed_at TIMESTAMP WITH TIME ZONE
 );
@@ -252,10 +319,17 @@ CREATE TABLE public.sale_items (
     vat NUMERIC(5, 2) DEFAULT 0.00,
     returned_quantity NUMERIC(10, 3) DEFAULT 0.000,
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     promo_id INTEGER REFERENCES public.promotions(id),
     discount_applied NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
 >>>>>>> refs/remotes/origin/main
+=======
+    promo_id INTEGER REFERENCES public.promotions(id),
+    discount_applied NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+=======
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -264,9 +338,15 @@ CREATE TABLE public.cash_movements (
     id SERIAL PRIMARY KEY,
     session_id INTEGER NOT NULL REFERENCES public.cash_box_sessions(id) ON DELETE CASCADE,
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     store_id UUID REFERENCES public.stores(id) ON DELETE CASCADE,
 >>>>>>> refs/remotes/origin/main
+=======
+    store_id UUID REFERENCES public.stores(id) ON DELETE CASCADE,
+=======
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
     user_id UUID NOT NULL REFERENCES public.users(id),
     type VARCHAR(10) CHECK (type IN ('IN', 'OUT')) NOT NULL,
     amount NUMERIC(10, 2) NOT NULL,
@@ -281,9 +361,15 @@ CREATE TABLE public.refunds (
     user_id UUID NOT NULL REFERENCES public.users(id),
     session_id INTEGER NOT NULL REFERENCES public.cash_box_sessions(id),
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     store_id UUID REFERENCES public.stores(id) ON DELETE CASCADE,
 >>>>>>> refs/remotes/origin/main
+=======
+    store_id UUID REFERENCES public.stores(id) ON DELETE CASCADE,
+=======
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
     total_refunded NUMERIC(10, 2) NOT NULL,
     reason TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -301,11 +387,14 @@ CREATE TABLE public.refund_items (
 );
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 -- ÍNDICES DE RENDIMIENTO
 CREATE INDEX idx_products_search ON public.products (store_id, active, name, barcode);
 CREATE INDEX idx_sales_session ON public.sales (session_id);
 CREATE INDEX idx_inventory_product ON public.inventory (product_id, store_id);
 =======
+=======
+>>>>>>> c03c0eb (ajustes de instalacion)
 -- ÍNDICES
 CREATE INDEX idx_products_search ON public.products (store_id, active, name, barcode);
 CREATE INDEX idx_sales_session ON public.sales (session_id);
@@ -313,7 +402,16 @@ CREATE INDEX idx_inventory_product ON public.inventory (product_id, store_id);
 CREATE INDEX idx_users_store ON public.users (store_id);
 CREATE INDEX idx_categories_store ON public.categories (store_id);
 CREATE INDEX idx_terminals_store ON public.pos_terminals (store_id);
+<<<<<<< HEAD
 >>>>>>> refs/remotes/origin/main
+=======
+=======
+-- ÍNDICES DE RENDIMIENTO
+CREATE INDEX idx_products_search ON public.products (store_id, active, name, barcode);
+CREATE INDEX idx_sales_session ON public.sales (session_id);
+CREATE INDEX idx_inventory_product ON public.inventory (product_id, store_id);
+>>>>>>> 07b1c29 (ajustes de instalacion)
+>>>>>>> c03c0eb (ajustes de instalacion)
 
 -- ==========================================
 -- 3. DATOS INICIALES DE PRUEBA (SEED)
