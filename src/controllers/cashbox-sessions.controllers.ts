@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { pool } from "../config/postgresql.config";
 import { AuthRequest } from "../interfaces/auth.interface";
+import { log } from "node:console";
 
 export const openCashBoxSession = async (req: AuthRequest, res: Response) => {
   const { opening_amount, pos_terminal_id } = req.body;
@@ -71,6 +72,8 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
 
   const offset = (Number(page) - 1) * Number(limit);
 
+  log("finalStoreId:", finalStoreId, "finalUserId:", finalUserId);
+
   try {
     const result = await pool.query(`
         SELECT 
@@ -120,7 +123,7 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
             ($1::timestamp IS NULL OR cbs.opened_at >= $1)
             AND ($2::timestamp IS NULL OR cbs.opened_at <= $2)
             AND ($3::int IS NULL OR cbs.pos_terminal_id = $3)
-            AND ($4::int IS NULL OR cbs.user_id = $4)
+            AND ($4::uuid IS NULL OR cbs.user_id = $4)
             AND ($5::uuid IS NULL OR cbs.store_id = $5)
         ORDER BY cbs.opened_at DESC
         LIMIT $6 OFFSET $7;
@@ -146,7 +149,7 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
             ($1::timestamp IS NULL OR cbs.opened_at >= $1)
             AND ($2::timestamp IS NULL OR cbs.opened_at <= $2)
             AND ($3::int IS NULL OR cbs.pos_terminal_id = $3)
-            AND ($4::int IS NULL OR cbs.user_id = $4)
+            AND ($4::uuid IS NULL OR cbs.user_id = $4)
             AND ($5::uuid IS NULL OR cbs.store_id = $5)
     `, [
       start_date || null,
@@ -170,7 +173,7 @@ export const getCashBoxSessions = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (err: any) {
-    console.error("Error en getCashBoxSessions:", err);
+    // console.error("Error en getCashBoxSessions:", err);
     res.status(500).json({ response: "error", error: err.message });
   }
 };
