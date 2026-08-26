@@ -12,6 +12,7 @@ import storeRoutes from "./routes/stores.routes";
 import cashMovementRoutes from "./routes/cash-movements.routes";
 import reportRoutes from "./routes/reports.routes";
 import promotionRoutes from "./routes/promotions.routes";
+import barRoutes from "./routes/bar.routes";
 import { envConfig } from "./config/environment.config";
 
 const app = express();
@@ -32,6 +33,7 @@ app.use("/stores", storeRoutes);
 app.use("/cash-movements", cashMovementRoutes);
 app.use("/reports", reportRoutes);
 app.use("/promotions", promotionRoutes);
+app.use("/bar", barRoutes);
 
 const port = Number(envConfig.port ?? 5000);
 app.listen(port, "0.0.0.0", () => console.log(`Server running http://localhost${port}`));
