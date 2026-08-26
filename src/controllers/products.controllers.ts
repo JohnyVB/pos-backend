@@ -27,6 +27,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
           p.price,
           p.cost_price,
           p.vat,
+          p.net_price,
           p.sale_type,
           p.category_id,
           p.min_stock,
@@ -96,14 +97,14 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
   const { store_id } = req.params;
-  const { name, barcode, price, vat, category_id, sale_type, cost_price } = req.body;
+  const { name, barcode, price, vat, category_id, sale_type, cost_price, net_price } = req.body;
   try {
     // crear el producto en la base de datos
     const result = await pool.query(
-      `INSERT INTO products (name, barcode, price, vat, category_id, sale_type, cost_price, active, store_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8)
+      `INSERT INTO products (name, barcode, price, vat, category_id, sale_type, cost_price, net_price, active, store_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,$9)
        RETURNING *`,
-      [name, barcode, price, vat, category_id, sale_type, cost_price, store_id],
+      [name, barcode, price, vat, category_id, sale_type, cost_price, net_price, store_id],
     );
 
     // agregar el producto al inventario con cantidad 0
@@ -121,12 +122,12 @@ export const createProduct = async (req: Request, res: Response) => {
 
 export const updateProduct = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, barcode, price, vat, category_id, sale_type, min_stock, cost_price } = req.body;
+  const { name, barcode, price, vat, category_id, sale_type, min_stock, cost_price, net_price } = req.body;
   try {
     const result = await pool.query(
-      `UPDATE products SET name=$1, barcode=$2, price=$3, vat=$4, category_id=$5, sale_type=$6, min_stock=$7, cost_price=$8
-       WHERE id=$9 RETURNING *`,
-      [name, barcode, price, vat, category_id, sale_type, min_stock, cost_price, id],
+      `UPDATE products SET name=$1, barcode=$2, price=$3, vat=$4, category_id=$5, sale_type=$6, min_stock=$7, cost_price=$8, net_price=$9
+       WHERE id=$10 RETURNING *`,
+      [name, barcode, price, vat, category_id, sale_type, min_stock, cost_price, net_price, id],
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ response: "error", message: "Product not found" });

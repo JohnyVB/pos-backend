@@ -25,7 +25,8 @@ export const getCategories = async (req: AuthRequest, res: Response) => {
         c.created_at,
         c.store_id,
         s.name AS store_name,
-        c.active
+        c.active,
+        c.scope
       FROM categories c
       JOIN stores s ON c.store_id = s.id
       WHERE ($1::uuid IS NULL OR c.store_id = $1::uuid) AND c.active = true
@@ -60,12 +61,12 @@ export const getCategories = async (req: AuthRequest, res: Response) => {
 };
 
 export const createCategory = async (req: Request, res: Response) => {
-  const { name, description } = req.body;
+  const { name, description, scope } = req.body;
   const { store_id } = req.params;
   try {
     const result = await pool.query(
-      "INSERT INTO categories (name, created_at, description, active, store_id) VALUES ($1, NOW(), $2, true, $3) RETURNING *",
-      [name, description, store_id],
+      "INSERT INTO categories (name, created_at, description, active, store_id, scope) VALUES ($1, NOW(), $2, true, $3, $4) RETURNING *",
+      [name, description, store_id, scope],
     );
     res.status(201).json({ response: "success", category: result.rows[0] });
   } catch (err: any) {
