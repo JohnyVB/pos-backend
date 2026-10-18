@@ -35,5 +35,5 @@ app.use("/reports", reportRoutes);
 app.use("/promotions", promotionRoutes);
 app.use("/bar", barRoutes);
 
-const port = Number(envConfig.port ?? 5000);
-app.listen(port, "0.0.0.0", () => console.log(`Server running http://localhost${port}`));
+const port = Number(envConfig.port ?? 4000);
+app.listen(port, "0.0.0.0", () => console.log(`Server running http://localhost:${port}`));
